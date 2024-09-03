@@ -52,7 +52,7 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
     valid_info = {
         'AVG_SCORE': float(f"{np.mean(all_score).item()*100:.1f}") if len(all_score)>0 else None,
         'AVG_LOSS': float(f"{np.mean(all_loss).item():.6f}") if len(all_loss)>0 else None,
-        'AVG_SKEW': float(f"{np.mean(all_skew).item()*100:.1f}") if len(all_skew)>0 else None,
+        'AVG_SKEW': float(f"{np.mean(all_skew).item()*100:.3f}") if len(all_skew)>0 else None,
     }
     pbar.close()
     return valid_info
