@@ -43,7 +43,6 @@ def find(cfg):
         assert element["id"] == i == prompt_pool[i]["id"]
         assert "choosen" not in element and "ctxs" not in element
         random.seed(i)
-        element["choosen"] = []
         # `ctxs` stores the sampled prompt ids 
         element["ctxs"] = [
             prompt_pool[a]
@@ -134,7 +133,6 @@ def main():
             "projection_dim": 0,
             "batch_size": 8,
             "k_shot": 3,
-            "use_choosen":0,
             "temperature":1,
             "hard_mask":False,
             "generate_max_len":100,

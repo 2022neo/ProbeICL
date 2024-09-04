@@ -17,19 +17,20 @@ tasklist=(copa arc_c arc_e openbookqa mrpc qqp paws mnli qnli snli rte sst2 sst5
 
 ## Scoring <a name="Scoring"></a>
 ```bash
-sh scripts/score.sh ${gpu_ids} ${exps_dir} ${task_name} ${finder_L}
+sh scripts/score.sh ${gpu_ids} ${exps_dir} ${task_name} ${finder_L} ${GPUS_PER_CHUNK}
 #such as:
-sh scripts/score.sh "0,1" "/PATH/TO/OUTPUTS/" "copa" 600
+sh scripts/score.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa" 600 1
 ```
 
 The scored training data for ```${task_name}``` in ```${tasklist}```  will be saved to ```${exps_dir}/${task_name}/```. Randomly sampling ```${finder_L}``` examples for each query. Larger ```${finder_L}``` is expected for better performance.
-The runtime of scoring process increases as the value of ```${finder_L}```$ increases, yet each dataset only requiring a single run of scoring.
+The runtime of scoring process increases as the value of ```${finder_L}``` increases, but each dataset only requiring a single run of scoring. ```${GPUS_PER_CHUNK}``` specifies the number of GPUs in ```${gpu_ids}``` allocated for each subprocess. Increase ```${GPUS_PER_CHUNK}``` if the GPU memory is too small to run.
+
 
 ## Training <a name="Training"></a>
 ```bash
 bash scripts/train.sh ${gpu_ids} ${exps_dir} ${task_name}
 #such as:
-sh scripts/train.sh "0,1" "/PATH/TO/OUTPUTS/" "copa"
+sh scripts/train.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa"
 ```
 
 We recommend writing unique training scripts for each task to try different parameters.
@@ -42,7 +43,7 @@ We have already included the execution of the ```inference.sh``` script by defau
 ```bash
 bash scripts/inference.sh ${gpu_ids} ${exps_dir} ${task_name}
 #such as:
-sh scripts/inference.sh "0,1" "/PATH/TO/OUTPUTS/" "copa"
+sh scripts/inference.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa"
 ```
 
 The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/inference```

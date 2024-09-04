@@ -148,6 +148,8 @@ def main():
         'tau':ckpt_cfg['temperature'],
         'hard_mask':ckpt_cfg['hard_mask'],
         'rand_neg':ckpt_cfg['rand_neg'],
+        'pos_step':ckpt_cfg['pos_step'],
+        'neg_step':ckpt_cfg['neg_step'],
         'mask_type':ckpt_cfg['mask_type'],
         'multi_ctrs':ckpt_cfg['multi_ctrs'],
         'lm_name':ckpt_cfg['lm_name'],

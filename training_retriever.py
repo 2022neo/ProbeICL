@@ -24,16 +24,17 @@ setup_logger(logger)
 def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
     idx_list = list(range(len(dataset)))
     all_score,all_loss,all_skew = [],[],[]
-    pbar = tqdm(total=len(idx_list), desc=f"Test on Epoch {epoch} ...")
+    pbar = tqdm(total=len(idx_list), desc=f"Valid on Epoch {epoch} ...")
     for i, ind in enumerate(idx_list):
         pbar.update(1)
         data = dataset[ind]
         query_entry,answer_list,label = data.query_ctx,data.answers,data.label
         with torch.no_grad():
             pos_ctxs = data.positive_ctxs
-            neg_ctxs = data.negative_ctxs if config.rand_neg==1 else []
-            hard_neg_ctxs = data.hard_negative_ctxs
-            ctx_entries = pos_ctxs+hard_neg_ctxs+neg_ctxs
+            neg_ctxs = data.negative_ctxs
+            rand_ctxs = data.random_ctxs if config.rand_neg==1 else []
+            ctx_entries = pos_ctxs+neg_ctxs+rand_ctxs
+
             similarity = retriever.calculate_similarity(query_entry,ctx_entries,tensorizer)
             _, selected_ctxs = retriever.get_training_mask(similarity,ctx_entries,epoch,mask_type=1)
             label_loss,pred = llm.inference(query_entry,selected_ctxs,answer_list,label,force_pred=True)
@@ -73,31 +74,34 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
         query_entry,answer_list,label = data.query_ctx,data.answers,data.label
 
         pos_ctxs = data.positive_ctxs
-        neg_ctxs = data.negative_ctxs if config.rand_neg==1 else []
-        hard_neg_ctxs = data.hard_negative_ctxs
-        ctx_entries = pos_ctxs+hard_neg_ctxs+neg_ctxs
+        neg_ctxs = data.negative_ctxs
+        rand_ctxs = data.random_ctxs if config.rand_neg==1 else []
+        ctx_entries = pos_ctxs+neg_ctxs+rand_ctxs
 
         # caculate similarity matrix
         similarity = retriever.calculate_similarity(query_entry,ctx_entries,tensorizer)
         ortho_loss = retriever.calculate_ortho_loss(similarity)
         total_ortho_loss += ortho_loss.item()
+        loss = config.ortho_loss_penalty*ortho_loss
 
         # caculate contrastive loss
-        if config.multi_ctrs:
-            pos_idx_list_per_question = list(range(len(pos_ctxs)))
-            ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
-        else:
-            pos_idx_list_per_question = [0]
-            ctrs_loss = retriever.get_ctrs_loss(similarity,pos_idx_list_per_question)
-        total_ctrs_loss+=ctrs_loss.item()
+        if len(pos_ctxs)>0:
+            if config.multi_ctrs:
+                pos_idx_list_per_question = list(range(len(pos_ctxs)))
+                ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
+            else:
+                pos_idx_list_per_question = [0]
+                ctrs_loss = retriever.get_ctrs_loss(similarity,pos_idx_list_per_question)
+            total_ctrs_loss+=ctrs_loss.item()
+            loss+=config.ctrs_loss_penalty*ctrs_loss
 
         # get k-shot mask
         mask, selected_ctxs = retriever.get_training_mask(similarity,ctx_entries,epoch,config.mask_type)
-            
         label_loss,pred = llm(query_entry,selected_ctxs,answer_list,label,mask)
         total_label_loss+=label_loss.item()
+        loss += config.label_loss_penalty*label_loss
 
-        loss = config.ctrs_loss_penalty*ctrs_loss+config.label_loss_penalty*label_loss+config.ortho_loss_penalty*ortho_loss
+
         train_loss+=loss.item()
         loss.backward()
 
@@ -154,7 +158,6 @@ def parse_args():
     parser.add_argument("--dropout", type=float, default=0.1, help="")
     parser.add_argument("--pos_step", type=int, choices=[-1, 1], default=1, help="1 or -1")
     parser.add_argument("--neg_step", type=int, choices=[-1, 1], default=1, help="1 or -1")
-    parser.add_argument("--lr_flag", type=int, choices=[0, 1], default=0, help="")
 
     args = parser.parse_args()
     args.taskpath = str(Path(args.exps_dir)/args.task_name)
@@ -178,11 +181,9 @@ def main():
         cfg=config,
         loss_type="dpr",
         multi_task=False,
-        hard_neg=True,
         prompt_pool_paths = config.prompt_pool_paths,
         prompt_setup_type = config.prompt_setup_type,
         task_setup_type= config.task_setup_type,
-        use_choosen = config.use_choosen,
     )
     train_dataset.load_data()
 
@@ -192,11 +193,9 @@ def main():
         cfg=config,
         loss_type="dpr",
         multi_task=False,
-        hard_neg=True,
         prompt_pool_paths = config.prompt_pool_paths,
         prompt_setup_type = config.prompt_setup_type,
         task_setup_type= config.task_setup_type,
-        use_choosen = config.use_choosen,
     )
     valid_dataset.load_data()
 
@@ -210,9 +209,8 @@ def main():
     # TRAIN
     config.update_cnt = 0
     for epc in range(1,nepoch+1):
-        if config.lr_flag:
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = config.learning_rate/epc
+        # for param_group in optimizer.param_groups:
+        #     param_group['lr'] = config.learning_rate/epc
         train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, task, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
         config['valid_info']=valid_info
