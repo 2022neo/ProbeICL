@@ -223,69 +223,29 @@ class ProbeIclDataset(Dataset):
         if self.loss_type == 'dpr':
             task_name = entry["task_name"]
             task = task_map.cls_dic[task_name]()
-            # positive
-            if task.class_num>1:
-                true_cntxs = [
-                    ctx_entry
-                    for ctx_entry in entry["ctxs"]
-                    if (ctx_entry["one_shot_acc"] == True or ctx_entry["one_shot_acc"] > 0)
-                ] # filter out those with acc == 0
-            else:
-                true_cntxs = entry["ctxs"][::self.cfg.pos_step][:self.top_k]
-            positive_cntx = [
+
+            scored_cntxs = [
                 {
                     "demonstration": format_example(p_example, self.prompt_setup_type),
                     "title":p_example["title"] if "title" in p_example else None,
                 }
-                for p_example in true_cntxs[::self.cfg.pos_step][:self.top_k]
+                for p_example in entry["ctxs"][:self.top_k]
             ] 
-            positive_ids = [ctx_entry['id'] for ctx_entry in true_cntxs[::self.cfg.pos_step][:self.top_k]] 
+            scored_ids = [ctx_entry['id'] for ctx_entry in entry["ctxs"][:self.top_k]] 
+            positive_idx_list = [
+                i for i,ctx_entry in enumerate(entry["ctxs"][:self.top_k]) 
+                if (entry["ctxs"][0]["one_shot_acc"]==True or entry["ctxs"][0]["one_shot_acc"] > 0)
+            ]
 
-            # remember to ensure `topk` = `num_of_negatives` if you want the hard negatives to be the last k-ranked prompts
-            if task.class_num>1:
-                false_cntxs = [
-                    ctx_entry
-                    for ctx_entry in entry["ctxs"]
-                    if (ctx_entry["one_shot_acc"] == False or ctx_entry["one_shot_acc"] == 0)
-                ] # select those with acc == 0
-            else:
-                false_cntxs = entry["ctxs"][::self.cfg.neg_step][-self.top_k :]
-            negative_ctxs = [
+            # random example
+            filtered_prompt_pool = [prompt for prompt in self.prompt_pool if prompt['id'] not in scored_ids]
+            rand_cntx = [
                 {
                     "demonstration": format_example(n_example, self.prompt_setup_type),
                     "title":n_example["title"] if "title" in n_example else None,
                 }
-                for n_example in false_cntxs[::self.cfg.neg_step][-self.top_k :]
+                for n_example in random.choices(filtered_prompt_pool, k=self.top_k)
             ]
-            negative_ids = [
-                n_example['id']
-                for n_example in false_cntxs[::self.cfg.neg_step][-self.top_k :]
-            ]
-
-            # negative
-            if self.multi_task:
-                # when multi_task == True,
-                # random sample those of different tasks as negatives
-                rand_cntx = [
-                    {
-                        "demonstration": format_example(n_example, self.prompt_setup_type),
-                        "title":n_example["title"] if "title" in n_example else None,
-                    }
-                    for n_example in random.choices(self.prompt_pool, k=self.top_k)
-                    if not n_example["task_name"] == task_name
-                ] 
-            else:
-                # when multi_task == False, 
-                # random sample negatives from the same training set, 
-                # but avoid choosing those already existed the the positives/hard negatives
-                filtered_prompt_pool = [prompt for prompt in self.prompt_pool if prompt['id'] not in positive_ids + negative_ids]
-                rand_cntx = [
-                    {
-                        "demonstration": format_example(n_example, self.prompt_setup_type),
-                        "title":n_example["title"] if "title" in n_example else None,
-                    }
-                    for n_example in random.choices(filtered_prompt_pool, k=self.top_k)
-                ]
 
             # use task_name + id to finde example，for multi task data
             question = ""
@@ -299,15 +259,15 @@ class ProbeIclDataset(Dataset):
                 "query_ctx": query_ctx,
                 "answers": answers,
                 "label":label,
-                "positive_ctxs": positive_cntx,
-                "negative_ctxs": negative_ctxs,
+                "scored_cntxs": scored_cntxs,
+                "positive_idx_list": positive_idx_list,
                 "random_ctxs": rand_cntx,
             })
             return entry
         else:
             raise NotImplementedError
 
-    def load_data(self):
+    def load_data(self,training=True):
         logger.info("dpr files: %s", self.data_files)
         raw_data = read_data_from_json_files(self.data_files)
         logger.info("********len(raw_data): %d", len(raw_data))
@@ -316,7 +276,7 @@ class ProbeIclDataset(Dataset):
             self.data.append(self.get_entry(entry))
         # filter out those without positive ctx
         if self.loss_type == 'dpr':
-            self.data = [r for r in self.data if len(r["positive_ctxs"]) > 0 and len(r["negative_ctxs"]) > 0]
+            self.data = [r for r in self.data if len(r["positive_idx_list"])>0] if training else self.data
             logger.info("filter out data for : {}".format(len(raw_data) - len(self.data)))
             logger.info("Total filtered data size: {}".format(len(self.data)))
         else:

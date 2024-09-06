@@ -30,10 +30,7 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
         data = dataset[ind]
         query_entry,answer_list,label = data.query_ctx,data.answers,data.label
         with torch.no_grad():
-            pos_ctxs = data.positive_ctxs
-            neg_ctxs = data.negative_ctxs
-            rand_ctxs = data.random_ctxs if config.rand_neg==1 else []
-            ctx_entries = pos_ctxs+neg_ctxs+rand_ctxs
+            ctx_entries = data.scored_cntxs
 
             similarity = retriever.calculate_similarity(query_entry,ctx_entries,tensorizer)
             _, selected_ctxs = retriever.get_training_mask(similarity,ctx_entries,epoch,mask_type=1)
@@ -73,10 +70,9 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
         data = train_dataset[ind]
         query_entry,answer_list,label = data.query_ctx,data.answers,data.label
 
-        pos_ctxs = data.positive_ctxs
-        neg_ctxs = data.negative_ctxs
+        scored_ctxs = data.scored_cntxs
         rand_ctxs = data.random_ctxs if config.rand_neg==1 else []
-        ctx_entries = pos_ctxs+neg_ctxs+rand_ctxs
+        ctx_entries = scored_ctxs+rand_ctxs
 
         # caculate similarity matrix
         similarity = retriever.calculate_similarity(query_entry,ctx_entries,tensorizer)
@@ -85,15 +81,14 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
         loss = config.ortho_loss_penalty*ortho_loss
 
         # caculate contrastive loss
-        if len(pos_ctxs)>0:
-            if config.multi_ctrs:
-                pos_idx_list_per_question = list(range(len(pos_ctxs)))
-                ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
-            else:
-                pos_idx_list_per_question = [0]
-                ctrs_loss = retriever.get_ctrs_loss(similarity,pos_idx_list_per_question)
-            total_ctrs_loss+=ctrs_loss.item()
-            loss+=config.ctrs_loss_penalty*ctrs_loss
+        if config.multi_ctrs and config.option_num>1 and len(data.positive_idx_list)<len(ctx_entries):
+            pos_idx_list_per_question = data.positive_idx_list
+            ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
+        else:
+            pos_idx_list_per_question = [0]
+            ctrs_loss = retriever.get_ctrs_loss(similarity,pos_idx_list_per_question)
+        total_ctrs_loss+=ctrs_loss.item()
+        loss+=config.ctrs_loss_penalty*ctrs_loss
 
         # get k-shot mask
         mask, selected_ctxs = retriever.get_training_mask(similarity,ctx_entries,epoch,config.mask_type)
@@ -197,7 +192,7 @@ def main():
         prompt_setup_type = config.prompt_setup_type,
         task_setup_type= config.task_setup_type,
     )
-    valid_dataset.load_data()
+    valid_dataset.load_data(training=False)
 
     # MODEL
     config.total_updates = nepoch*len(train_dataset)//config.batch_size
