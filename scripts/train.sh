@@ -5,7 +5,7 @@ task_name=$3
 
 sh scripts/inference.sh $gpu_ids $exps_dir $task_name
 
-for dropout in 0.1 0.2 0.3; do
+for dropout in 0.2 0.3 0.1; do
     for ctrs_loss_penalty in 1 0.1; do
         for label_loss_penalty in 0.001 1; do
             for ortho_loss_penalty in 1 10; do
