@@ -22,6 +22,7 @@ sh scripts/score.sh ${gpu_ids} ${exps_dir} ${task_name} ${finder_L} ${GPUS_PER_C
 sh scripts/score.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa" 600 1
 ```
 
+It is recommended to set `${exps_dir}` to an absolute path.
 The scored training data for ```${task_name}``` in ```${tasklist}```  will be saved to ```${exps_dir}/${task_name}/```. Randomly sampling ```${finder_L}``` examples for each query. Larger ```${finder_L}``` is expected for better performance.
 The runtime of scoring process increases as the value of ```${finder_L}``` increases, but each dataset only requiring a single run of scoring. ```${GPUS_PER_CHUNK}``` specifies the number of GPUs in ```${gpu_ids}``` allocated for each subprocess. Increase ```${GPUS_PER_CHUNK}``` if the GPU memory is too small to run.
 
