@@ -147,6 +147,7 @@ def main():
         'ctrs_penalty':ckpt_cfg['ctrs_loss_penalty'],
         'tau':ckpt_cfg['temperature'],
         'hard_mask':ckpt_cfg['hard_mask'],
+        'filter_positive':ckpt_cfg['filter_positive'],
         'rand_neg':ckpt_cfg['rand_neg'],
         'mask_type':ckpt_cfg['mask_type'],
         'multi_ctrs':ckpt_cfg['multi_ctrs'],
