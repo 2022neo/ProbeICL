@@ -22,7 +22,7 @@ sh scripts/score.sh ${gpu_ids} ${exps_dir} ${task_name} ${finder_L} ${GPUS_PER_C
 sh scripts/score.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa" 600 1
 ```
 
-You can load the model using a local path by modifying the script of ```scripts/score.sh```, otherwise it will be loaded from HuggingFace by default.
+You can load the model using a local path by modifying the script of ```scripts/score.sh```, otherwise it will be downloaded into ```${exps_dir}/_cache```.
 
 It is recommended to set `${exps_dir}` to an absolute path.
 The scored training data for ```${task_name}``` in ```${tasklist}```  will be saved to ```${exps_dir}/${task_name}/```. Randomly sampling ```${finder_L}``` examples for each query. Larger ```${finder_L}``` is expected for better performance.
