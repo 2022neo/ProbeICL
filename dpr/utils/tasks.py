@@ -159,7 +159,7 @@ class Mnli(BaseTask):
         self.cluster = "nli"
 
     def get_dataset(self, split=None, ds_size=None, cache_dir=None):
-        dataset = load_dataset("glue", "mnli", cache_dir=cache_dir)
+        dataset = load_dataset("glue", "mnli", cache_dir=cache_dir, revision="script")
         if split == "train":
             return self.load_data_split(dataset, ds_size=ds_size, split=split)
         else:  
@@ -211,7 +211,7 @@ class Mnli_m(Mnli):
         super().__init__()
 
     def get_dataset(self, split=None, ds_size=None, cache_dir=None):
-        dataset = load_dataset("glue", "mnli_matched", cache_dir=cache_dir)
+        dataset = load_dataset("glue", "mnli_matched", cache_dir=cache_dir, revision="script")
         if split == "train":
             raise Exception("Please switch to mnli for mnli training sets")
         else:  
@@ -225,7 +225,7 @@ class Mnli_mm(Mnli):
         super().__init__()
 
     def get_dataset(self, split=None, ds_size=None, cache_dir=None):
-        dataset = load_dataset("glue", "mnli_mismatched", cache_dir=cache_dir)
+        dataset = load_dataset("glue", "mnli_mismatched", cache_dir=cache_dir, revision="script")
         if split == "train":
             raise Exception("Please switch to mnli for mnli training sets")
         else:  
@@ -243,7 +243,7 @@ class Qnli(BaseTask):
         self.cluster = "nli"
 
     def get_dataset(self, split=None, ds_size=None, cache_dir=None):
-        dataset = load_dataset("glue", "qnli", cache_dir=cache_dir)
+        dataset = load_dataset("glue", "qnli", cache_dir=cache_dir, revision="script")
         if split == "train":
             return self.load_data_split(dataset, ds_size=ds_size, split=split)
         else:  
@@ -851,7 +851,7 @@ class Mrpc(BaseTask):
         self.cluster = "paraphrase"
 
     def get_dataset(self, split=None, ds_size=None, cache_dir=None):
-        dataset = load_dataset("glue", "mrpc", cache_dir=cache_dir)
+        dataset = load_dataset("glue", "mrpc", cache_dir=cache_dir, revision="script")
         if split == "train":
             return self.load_data_split(dataset, ds_size=ds_size, split=split)
         else:  
@@ -906,7 +906,7 @@ class Qqp(BaseTask):
         self.cluster = "paraphrase"
 
     def get_dataset(self, split=None, ds_size=None, cache_dir=None):
-        dataset = load_dataset("glue", "qqp", cache_dir=cache_dir)
+        dataset = load_dataset("glue", "qqp", cache_dir=cache_dir, revision="script")
         if split == "train":
             return self.load_data_split(dataset, ds_size=ds_size, split=split)
         else:  
