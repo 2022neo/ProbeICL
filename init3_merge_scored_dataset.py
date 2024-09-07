@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import json
 import os
+from dpr.data.biencoder_data import get_raw_data
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -27,6 +28,9 @@ def main():
         data = []
         for p in outputpath.rglob(name):
             data+=[json.loads(line) for line in p.open('r')]
+
+        raw_data = get_raw_data(inputfile)
+        assert len(raw_data)==len(data)
  
         ans_name = Path(inputfile).stem+'.json'
         ans_fn = Path(args.taskpath)/"scored"/ans_name
