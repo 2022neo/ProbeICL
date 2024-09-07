@@ -276,7 +276,7 @@ class ProbeIclDataset(Dataset):
             self.data.append(self.get_entry(entry))
         # filter out those without positive ctx
         if self.loss_type == 'dpr':
-            self.data = [r for r in self.data if len(r["positive_idx_list"])>0] if training else self.data
+            self.data = [r for r in self.data if len(r["positive_idx_list"])>0] if (training and self.cfg.filter_positive) else self.data
             logger.info("filter out data for : {}".format(len(raw_data) - len(self.data)))
             logger.info("Total filtered data size: {}".format(len(self.data)))
         else:

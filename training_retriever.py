@@ -81,7 +81,7 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
         loss = config.ortho_loss_penalty*ortho_loss
 
         # caculate contrastive loss
-        if config.multi_ctrs and config.option_num>1 and len(data.positive_idx_list)<len(ctx_entries):
+        if config.multi_ctrs and config.option_num>1 and len(data.positive_idx_list)<len(ctx_entries) and len(data.positive_idx_list)>0:
             pos_idx_list_per_question = data.positive_idx_list
             ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
         else:
@@ -151,8 +151,7 @@ def parse_args():
     parser.add_argument("--norm_mask", type=int, choices=[0, 1], default=0, help="")
     parser.add_argument("--temperature", type=float, default=1, help="")
     parser.add_argument("--dropout", type=float, default=0.1, help="")
-    parser.add_argument("--pos_step", type=int, choices=[-1, 1], default=1, help="1 or -1")
-    parser.add_argument("--neg_step", type=int, choices=[-1, 1], default=1, help="1 or -1")
+    parser.add_argument("--filter_positive", type=int, choices=[0, 1], default=1, help="1 or 0")
 
     args = parser.parse_args()
     args.taskpath = str(Path(args.exps_dir)/args.task_name)
