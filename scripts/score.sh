@@ -4,8 +4,9 @@ exps_dir=$2
 task_name=$3
 finder_L=$4
 GPUS_PER_CHUNK=$5
+llm_model="EleutherAI/gpt-neo-2.7B" #You can replace it with a local path, otherwise download from HuggingFace by default.
 
-CUDA_VISIBLE_DEVICES=$gpu_ids  python init1_prepare_dataset.py --exps_dir $exps_dir --task_name $task_name --finder_L $finder_L
+CUDA_VISIBLE_DEVICES=$gpu_ids  python init1_prepare_dataset.py --exps_dir $exps_dir --task_name $task_name --finder_L $finder_L --llm_model $llm_model
 
 IFS=',' read -r -a GPULIST <<< "$gpu_ids"
 NUM_GPUS=${#GPULIST[@]}

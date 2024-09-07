@@ -4,6 +4,7 @@ from torch import nn
 from torch import Tensor as T
 from easydict import EasyDict as edict
 from utils.metric import metric_dict
+from pathlib import Path
 
 def get_model_max_length(model_name):
     if 'llama-3' in model_name.lower():
@@ -17,8 +18,10 @@ class CausalLM(nn.Module):
         super().__init__()
         model_name=config.lm_name
         self.max_length = get_model_max_length(model_name)
-        device_map='auto'
-        self.model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name, cache_dir=config.cache_dir,device_map=device_map)
+        if Path(model_name).exists():
+            self.model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name,device_map='auto')
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name, cache_dir=config.cache_dir,device_map='auto')
         self.model = self.model.eval()
         self.device = self.model.device
         self.override_attn()

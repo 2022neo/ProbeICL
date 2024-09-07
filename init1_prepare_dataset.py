@@ -70,6 +70,10 @@ def parse_args():
                         type=int,
                         help='number of maximum data examples sampled from each training dataset',
                         default=10000)
+    parser.add_argument('--llm_model', 
+                        type=str, help='pretrained model name or path.', 
+                        required=True)
+
     args = parser.parse_args()
     args.cache_dir = str(Path(args.exps_dir)/'_cache')
     args.prompt_pool_path = str(Path(args.exps_dir)/args.task_name/'prompt_pool'/f'{args.task_name}_prompts.json')
@@ -136,7 +140,7 @@ def main():
             "temperature":1,
             "hard_mask":False,
             "generate_max_len":100,
-            "lm_name": "EleutherAI/gpt-neo-2.7B",
+            "lm_name": cfg.llm_model,
         }, indent=2) + "\n")
 
 if __name__ == "__main__":
