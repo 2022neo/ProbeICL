@@ -8,9 +8,9 @@ sh scripts/inference.sh $gpu_ids $exps_dir $task_name
 for ctrs_loss_penalty in 1 0.1; do
     for label_loss_penalty in 0.001 1; do
         for ortho_loss_penalty in 1 10; do
-            for filter_positive in 1 0; do
-                for rand_neg in 1 0; do
-                    for multi_ctrs in 0 1; do
+            for rand_neg in 1 0; do
+                for multi_ctrs in 0 1; do
+                    for filter_positive in 1 0; do
                         for top_k in 80 160 190; do
                             CUDA_VISIBLE_DEVICES=$gpu_ids python training_retriever.py \
                             --exps_dir $exps_dir --task_name $task_name --learning_rate 0.00001 --epoches 6 \
