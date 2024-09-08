@@ -69,7 +69,6 @@ def scoring(raw_data, llm, outputfile, task, config):
                         raise NotImplementedError
             entry['ctxs'] = sorted(entry['ctxs'],key = lambda x: x['loss']) 
             ans_file.write(json.dumps(entry) + "\n")
-            break
     pbar.close()
 
 
