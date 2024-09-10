@@ -16,6 +16,11 @@ import argparse
 from utils.tools import getConfig
 from utils.metric import metric_dict
 
+torch.manual_seed(123)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(123)
+    torch.cuda.manual_seed(123)
+np.random.seed(123)
 random.seed(123)
 logger = logging.getLogger()
 setup_logger(logger)
