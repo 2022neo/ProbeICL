@@ -49,5 +49,7 @@ bash scripts/inference.sh ${gpu_ids} ${exps_dir} ${task_name}
 sh scripts/inference.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa"
 ```
 
-The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/inference```
+The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/inference```. You can customize `scripts/analyse.ipynb` to analyze experimental results and determine the optimal parameter.
+
+
 
