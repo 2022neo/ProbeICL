@@ -15,13 +15,14 @@ import torch
 import argparse
 from utils.tools import getConfig
 from utils.metric import metric_dict
+from evaluating_tretriever import evaluate
 
-torch.manual_seed(123)
+torch.manual_seed(42)
 if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(123)
-    torch.cuda.manual_seed(123)
-np.random.seed(123)
-random.seed(123)
+    torch.cuda.manual_seed_all(42)
+    torch.cuda.manual_seed(42)
+np.random.seed(42)
+random.seed(42)
 logger = logging.getLogger()
 setup_logger(logger)
 
@@ -40,17 +41,16 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
             similarity = retriever.calculate_similarity(query_entry,ctx_entries,tensorizer)
             _, selected_ctxs = retriever.get_training_mask(similarity,ctx_entries,epoch,mask_type=1)
             label_loss,pred = llm.inference(query_entry,selected_ctxs,answer_list,label,force_pred=True)
-            all_loss+=[label_loss.item()] if isinstance(label_loss,torch.Tensor) else [label_loss]
+            all_loss+=[label_loss.item()] if isinstance(label_loss,torch.Tensor) else []
             _, ranks = torch.sort(similarity.max(dim=0)[0], descending=True)
             ranks = ranks.tolist()
             n = len(ranks)-1
             skew = [abs(rank-idx)/n for idx,rank in enumerate(ranks)]
-            if llm.option_num>1:
-                all_score+=[int(pred == label)]
-            elif llm.option_num==1 and pred is not None:
-                compute_metric=metric_dict[task.metric]
-                score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
-                all_score+=[score]
+            # if llm.option_num>1:
+            #     all_score+=[int(pred == label)]
+            compute_metric=metric_dict[task.metric]
+            score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
+            all_score+=[score]
             all_skew.append(np.mean(skew).item())
     valid_info = {
         'AVG_SCORE': float(f"{np.mean(all_score).item()*100:.1f}") if len(all_score)>0 else None,
@@ -58,10 +58,11 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
         'AVG_SKEW': float(f"{np.mean(all_skew).item()*100:.3f}") if len(all_skew)>0 else None,
     }
     pbar.close()
+    config['valid_info']=valid_info
     return valid_info
 
 
-def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, task, epoch):
+def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epoch):
     retriever.train()
     idx_list = list(range(len(train_dataset)))
     random.shuffle(idx_list)
@@ -127,6 +128,7 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
         config.update_cnt+=1
     accurarcy = np.mean(acc).item() if llm.option_num>1 else None
     pbar.close()
+    config.ckptname=f"e{epoch:02d}_l{int(train_loss)}.pt"
     return train_loss,accurarcy
 
 def parse_args():
@@ -157,23 +159,17 @@ def parse_args():
     parser.add_argument("--temperature", type=float, default=1, help="")
     parser.add_argument("--dropout", type=float, default=0.1, help="")
     parser.add_argument("--filter_positive", type=int, choices=[0, 1], default=1, help="1 or 0")
+    parser.add_argument("--save_model", type=int, choices=[0, 1], default=0, help="1 or 0")
 
     args = parser.parse_args()
     args.taskpath = str(Path(args.exps_dir)/args.task_name)
     print("### Selected taskpath:", args.taskpath)
     return args
 
-def main():
-    cmd_args = parse_args()
-    taskpath = cmd_args.taskpath
-    cfgpath = str(Path(taskpath)/"config.json")
-    config = getConfig(cfgpath,cmd_args)
-    logger.info(config)
+
+def prepare_trial(config):
     task = task_map.cls_dic[config.task_name]()
     config.option_num=task.class_num
-
-    nepoch = config.epoches
-
     train_dataset = ProbeIclDataset(
         data_files=config.train_files,
         top_k=config.top_k,
@@ -198,31 +194,48 @@ def main():
     )
     valid_dataset.load_data(training=False)
 
+    test_dataset = task.get_dataset(
+            split="test",
+            cache_dir=config.cache_dir,
+        )
+    logger.info('test_dataset: %d' % len(test_dataset))
+
     # MODEL
-    config.total_updates = nepoch*len(train_dataset)//config.batch_size
+    config.total_updates = config.epoches*len(train_dataset)//config.batch_size
     config.warmup_steps = config.total_updates//3
     retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser = init_retriever(config)
     llm = CausalLM(config)
+    return train_dataset,valid_dataset,test_dataset,llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, task
 
 
+ 
+
+def main():
+    cmd_args = parse_args()
+    taskpath = cmd_args.taskpath
+    cfgpath = str(Path(taskpath)/"config.json")
+    config = getConfig(cfgpath,cmd_args)
+    logger.info(config)
+    train_dataset,valid_dataset,test_dataset,llm,retriever,tensorizer,optimizer,scheduler,scaler,prompt_parser,task = prepare_trial(config)
+    
     # TRAIN
     config.update_cnt = 0
-    for epc in range(1,nepoch+1):
-        # for param_group in optimizer.param_groups:
-        #     param_group['lr'] = config.learning_rate/epc
-        train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, task, epc)
+    for epc in range(1,config.epoches+1):
+        train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
-        config['valid_info']=valid_info
-        save_content = {
-            'epoch':epc,
-            'train_loss':train_loss,
-            'train_acc':acc,
-            'state_dict':retriever.state_dict(),
-            'config':config,
-        }
-        output_file = Path(taskpath)/'inference'/'saved_retriever'/f"e{epc:02d}_l{int(train_loss)}.pt"
-        output_file.parent.mkdir(exist_ok=True,parents=True)
-        torch.save(save_content,output_file)
+        result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
+        # valid test infomation will be saved to ${config.taskpath}/inference/infer_res.log
+        if config.save_model:
+            save_content = {
+                'epoch':epc,
+                'train_loss':train_loss,
+                'train_acc':acc,
+                'state_dict':retriever.state_dict(),
+                'config':config,
+            }
+            output_file = Path(config.taskpath)/'inference'/'saved_retriever'/config.ckptname
+            output_file.parent.mkdir(exist_ok=True,parents=True)
+            torch.save(save_content,output_file)
     logger.info(f'Train done. Update Count: {config.update_cnt}/{config.total_updates}')
 
 if __name__ == "__main__":

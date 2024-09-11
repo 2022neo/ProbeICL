@@ -33,5 +33,11 @@ def load_retriever_ckpt(retriever,ckptfn):
         ckpt['state_dict']
     )
 
+def load_optimizer_ckpt(optimizer,ckptfn):
+    ckpt = torch.load(ckptfn,map_location=optimizer.device)
+    optimizer.load_state_dict(
+        ckpt['optimizer_state']
+    )
+
 def format_metric(values):
     return float(f"{values*100:.1f}")

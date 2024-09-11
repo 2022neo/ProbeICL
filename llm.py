@@ -137,12 +137,14 @@ class CausalLM(nn.Module):
         input_ids+=[q_ids]
         input_ctx_mask+=[q_attn_mask] 
         
+        loss, pred = None, None
         if self.option_num>1:
-            return self.choice_loss(input_ids,input_ctx_mask,answer_list,test_label)
+            loss, pred = self.choice_loss(input_ids,input_ctx_mask,answer_list,test_label)
         elif self.option_num==1:
-            return self.completion_logits_loss(input_ids,input_ctx_mask,answer_list)
+            loss = self.completion_logits_loss(input_ids,input_ctx_mask,answer_list)
         else:
             raise NotImplementedError(f'loss for option_num={self.option_num} not implemented')
+        return loss, pred
     
     def get_pad_id(self) -> int:
         return self.tokenizer.pad_token_id
@@ -180,7 +182,7 @@ class CausalLM(nn.Module):
         self.clear_ctx_mask()
         logits=output.logits[:,-ans_ids.shape[-1]-1:-1,:]
         logit_losses= -torch.nn.functional.log_softmax(logits.float(), dim=-1)
-        loss = torch.gather(logit_losses, -1, ans_ids.unsqueeze(-1)).squeeze(-1).mean(dim=-1)
+        loss = torch.gather(logit_losses, -1, ans_ids.unsqueeze(-1)).mean()
         return loss
 
     def get_completion_pred(self, input_ids, answer_list):
