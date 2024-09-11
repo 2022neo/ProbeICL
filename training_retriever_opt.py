@@ -22,6 +22,15 @@ def parse_args():
     parser.add_argument('--exps_dir', 
                         type=str, help='Directory for saving all the intermediate and final outputs.', 
                         required=True)
+    parser.add_argument('--gpus_per_trial', 
+                        type=int, help='', 
+                        default=2)
+    parser.add_argument('--cpus_per_trial', 
+                        type=int, help='', 
+                        default=32)
+    parser.add_argument('--num_samples', 
+                        type=int, help='', 
+                        default=30)
     args = parser.parse_args()
     args.config_file = str(Path(args.exps_dir)/args.task_name/'config.json')
     args.taskpath = str(Path(args.exps_dir)/args.task_name)
@@ -53,7 +62,8 @@ def trial(param, taskpath):
         tune.report(score=score,metric=result_info["test_info"])
 
 
-def main(num_samples=20, max_num_epochs=10, gpus_per_trial=2):
+
+def main(max_num_epochs=10):
     cmd_args = parse_args()
     taskpath = cmd_args.taskpath
     cfgpath = str(Path(taskpath)/"config.json")
@@ -61,17 +71,27 @@ def main(num_samples=20, max_num_epochs=10, gpus_per_trial=2):
 
     # setup space of hyperparameters
     space = {
-        "l1": tune.sample_from(lambda _: 2 ** np.random.randint(2, 9)),
-        "l2": tune.sample_from(lambda _: 2 ** np.random.randint(2, 9)),
         "lr": tune.loguniform(1e-6, 1e-4),
-        "batch_size": tune.choice([2, 4, 8, 16])
+        "ctrs_loss_penalty": tune.loguniform(1e-2, 1),
+        "label_loss_penalty": tune.loguniform(1e-4, 10),
+        "ortho_loss_penalty": tune.loguniform(1e-2, 100),
+        "dropout": tune.choice([0.2, 0.1, 0.3]),
+        "top_k": tune.choice([80, 190]),
+        "rand_neg": tune.choice([0, 1]),
+        "multi_ctrs": tune.choice([0, 1]),
+        "filter_positive": tune.choice([0, 1]),
+        "mask_type": tune.choice([0, 1, 2, 3]),
+        "batch_size": tune.choice([8, 32]),
+        "epoches": 6,
+        "temperature": 1,
+        "hard_mask":1,
     }
     # ASHAScheduler for early stopping
     scheduler = ASHAScheduler(
         metric="score",
         mode="max",
         max_t=max_num_epochs,
-        grace_period=1,
+        grace_period=3,
         reduction_factor=2)
     # report in cmd
     reporter = CLIReporter(
@@ -81,9 +101,9 @@ def main(num_samples=20, max_num_epochs=10, gpus_per_trial=2):
     result = tune.run(
         partial(trial, taskpath=config.taskpath),
         # allocate resource for training
-        resources_per_trial={"cpu": 8, "gpu": gpus_per_trial},
+        resources_per_trial={"cpu": config.cpus_per_trial, "gpu": config.gpus_per_trial},
         config=space,
-        num_samples=num_samples,
+        num_samples=config.num_samples,
         scheduler=scheduler,
         progress_reporter=reporter,
         local_dir=checkpoint_dir
