@@ -16,8 +16,7 @@ def getConfig(cfg_path,cmd_args):
     config.train_files = [str(Path(cmd_args.exps_dir)/p) for p in config.train_files]
     config.valid_files = [str(Path(cmd_args.exps_dir)/p) for p in config.valid_files]
     config.prompt_pool_paths = [str(Path(cmd_args.exps_dir)/p) for p in config.prompt_pool_paths]
-    config.output_unscored_files = [str(Path(cmd_args.exps_dir)/p) for p in config.output_unscored_files]
-    
+    config.output_unscored_files = [str(Path(cmd_args.exps_dir)/p) for p in config.output_unscored_files]    
     return config
 
 def load_ckpt_cfg(ckptfn):
@@ -25,19 +24,15 @@ def load_ckpt_cfg(ckptfn):
     ckpt_cfg = ckpt['config']
     ckpt_cfg['train_loss']=ckpt['train_loss']
     ckpt_cfg['train_acc']=ckpt['train_acc']
+    ckpt_cfg['epoch']=ckpt['epoch']
     return ckpt_cfg
 
-def load_retriever_ckpt(retriever,ckptfn):
-    ckpt = torch.load(ckptfn,map_location=retriever.device)
+def load_module_ckpt(retriever,ckptfn,name,device):
+    ckpt = torch.load(ckptfn,map_location=device)
     retriever.load_state_dict(
-        ckpt['state_dict']
+        ckpt[name]
     )
 
-def load_optimizer_ckpt(optimizer,ckptfn):
-    ckpt = torch.load(ckptfn,map_location=optimizer.device)
-    optimizer.load_state_dict(
-        ckpt['optimizer_state']
-    )
 
 def format_metric(values):
     return float(f"{values*100:.1f}")

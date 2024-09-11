@@ -63,6 +63,7 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
 
 
 def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epoch):
+    config.update_cnt = config.update_cnt if 'update_cnt' in config else 0
     retriever.train()
     idx_list = list(range(len(train_dataset)))
     random.shuffle(idx_list)
@@ -170,6 +171,9 @@ def parse_args():
 def prepare_trial(config):
     task = task_map.cls_dic[config.task_name]()
     config.option_num=task.class_num
+    checkpoint_dir=Path(config.taskpath)/'inference'/'saved_retriever'
+    checkpoint_dir.mkdir(exist_ok=True,parents=True)
+    config.checkpoint_dir=str(checkpoint_dir)
     train_dataset = ProbeIclDataset(
         data_files=config.train_files,
         top_k=config.top_k,
@@ -219,7 +223,6 @@ def main():
     train_dataset,valid_dataset,test_dataset,llm,retriever,tensorizer,optimizer,scheduler,scaler,prompt_parser,task = prepare_trial(config)
     
     # TRAIN
-    config.update_cnt = 0
     for epc in range(1,config.epoches+1):
         train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
@@ -233,7 +236,7 @@ def main():
                 'state_dict':retriever.state_dict(),
                 'config':config,
             }
-            output_file = Path(config.taskpath)/'inference'/'saved_retriever'/config.ckptname
+            output_file = Path(config.checkpoint_dir)/config.ckptname
             output_file.parent.mkdir(exist_ok=True,parents=True)
             torch.save(save_content,output_file)
     logger.info(f'Train done. Update Count: {config.update_cnt}/{config.total_updates}')

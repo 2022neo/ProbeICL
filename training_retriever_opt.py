@@ -1,18 +1,19 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 from ray import tune
-from ray import train
+import ray
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
-import numpy as np
+from ray.train import Checkpoint, get_checkpoint
+import tempfile
 from pathlib import Path
 from utils.tools import getConfig
 from functools import partial
 import argparse
 from training_retriever import train,valid,evaluate,prepare_trial
+from utils.tools import load_ckpt_cfg, load_module_ckpt
+import logging
 import os
-from utils.tools import load_ckpt_cfg, load_retriever_ckpt, load_optimizer_ckpt
+os.environ['TQDM_DISABLE'] = 'True'
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -37,44 +38,66 @@ def parse_args():
     return args
 
 
-def trial(param, taskpath):
-    cfgpath = str(Path(taskpath)/"config.json")
-    config = getConfig(cfgpath,param)
+def trial(param, cmd_args):
+    cfgpath = str(Path(cmd_args.taskpath)/"config.json")
+    config = getConfig(cfgpath,cmd_args)
+    for k,v in param.items():
+        config[k]=v
 
     train_dataset,valid_dataset,test_dataset,llm,retriever,tensorizer,optimizer,scheduler,scaler,prompt_parser,task = prepare_trial(config)
-    for epc in range(1,config.epoches+1):
+    checkpoint = get_checkpoint()
+    if checkpoint:
+        with checkpoint.as_directory() as checkpoint_dir:
+            data_paths = list(Path(checkpoint_dir).rglob('*.pt'))
+            if len(data_paths)>0:
+                ckptfn = data_paths[0]
+                config = load_ckpt_cfg(ckptfn)
+                device = retriever.device
+                load_module_ckpt(retriever,ckptfn,"state_dict",device)
+                load_module_ckpt(optimizer,ckptfn,"optimizer_state",device)
+                load_module_ckpt(scheduler,ckptfn,"scheduler_state",device)
+            start_epoch = config["epoch"]+1
+    else:
+        start_epoch = 1
+
+
+    for epc in range(start_epoch,config.epoches+1):
         train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
-        result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
-        score=result_info["test_info"]["score"]
 
-        with tune.checkpoint_dir(epc) as checkpoint_dir:
+        with tempfile.TemporaryDirectory(dir=config.checkpoint_dir) as tmp_ckpt_dir:
+            savepath = Path(tmp_ckpt_dir)/config.ckptname
+            # savepath.parent.mkdir(exist_ok=True,parents=True)
+            config.ckptname=str(Path(savepath).relative_to(config.checkpoint_dir))
             save_content = {
                 'epoch':epc,
                 'train_loss':train_loss,
                 'train_acc':acc,
                 'state_dict':retriever.state_dict(),
                 'optimizer_state':optimizer.state_dict(),
+                'scheduler_state':scheduler.state_dict(),
                 'config':config,
             }
-            path = os.path.join(checkpoint_dir, "checkpoint")
-            torch.save(save_content, path)
-        tune.report(score=score,metric=result_info["test_info"])
+            torch.save(save_content, str(savepath))
+            checkpoint = Checkpoint.from_directory(tmp_ckpt_dir)
+            result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
+            score=result_info["test_info"]["score"]
+            ray.train.report(
+                {"score":score,"metric":result_info["test_info"]},
+                checkpoint=checkpoint,
+            )
 
 
 
 def main(max_num_epochs=10):
     cmd_args = parse_args()
-    taskpath = cmd_args.taskpath
-    cfgpath = str(Path(taskpath)/"config.json")
-    config = getConfig(cfgpath,cmd_args)
 
     # setup space of hyperparameters
     space = {
-        "lr": tune.loguniform(1e-6, 1e-4),
-        "ctrs_loss_penalty": tune.loguniform(1e-2, 1),
-        "label_loss_penalty": tune.loguniform(1e-4, 10),
-        "ortho_loss_penalty": tune.loguniform(1e-2, 100),
+        "lr": tune.qloguniform(1e-6, 1e-3, 1e-6),
+        "ctrs_loss_penalty": tune.quniform(1e-2, 1, 1e-2),
+        "label_loss_penalty": tune.quniform(1e-4, 10, 1e-4),
+        "ortho_loss_penalty": tune.quniform(1e-2, 100, 1e-2),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
         "top_k": tune.choice([80, 190]),
         "rand_neg": tune.choice([0, 1]),
@@ -95,18 +118,19 @@ def main(max_num_epochs=10):
         reduction_factor=2)
     # report in cmd
     reporter = CLIReporter(
-        metric_columns=["score", "accuracy"])
+        metric_columns=["score", "loss"])
     # start to train
-    checkpoint_dir = Path(config.taskpath)/'inference'/'saved_retriever'
+    ray_dir = Path(cmd_args.taskpath)/'inference'/'_ray'
+    ray_dir.mkdir(exist_ok=True,parents=True)
     result = tune.run(
-        partial(trial, taskpath=config.taskpath),
+        partial(trial, cmd_args=cmd_args),
         # allocate resource for training
-        resources_per_trial={"cpu": config.cpus_per_trial, "gpu": config.gpus_per_trial},
+        resources_per_trial={"cpu": cmd_args.cpus_per_trial, "gpu": cmd_args.gpus_per_trial},
         config=space,
-        num_samples=config.num_samples,
+        num_samples=cmd_args.num_samples,
         scheduler=scheduler,
         progress_reporter=reporter,
-        local_dir=checkpoint_dir
+        local_dir=str(ray_dir)
         )
  
     # find the best trial
@@ -115,3 +139,6 @@ def main(max_num_epochs=10):
     print("Best trial final score: {}".format(best_trial.last_result["score"]))
     print("Best trial final metric: {}".format(best_trial.last_result["metric"]))
     print("Best trial final ckpt: {}".format(best_trial.checkpoint.value))
+
+if __name__=='__main__':
+    main()

@@ -9,7 +9,7 @@ for ctrs_loss_penalty in 1 0.1; do
             for dropout in 0.2 0.1; do
                 for rand_neg in 0 1; do
                     for multi_ctrs in 0 1; do
-                        for top_k in 80 190; do
+                        for top_k in 10 190; do
                             filter_positive=1
                             CUDA_VISIBLE_DEVICES=$gpu_ids python training_retriever.py \
                             --exps_dir $exps_dir --task_name $task_name --learning_rate 0.00001 --epoches 6 \

@@ -15,7 +15,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from retriever import init_retriever
-from utils.tools import load_ckpt_cfg, load_retriever_ckpt
+from utils.tools import load_ckpt_cfg, load_module_ckpt
 import json
 from utils.metric import metric_dict,compute_metrics
 from sklearn.metrics import f1_score, accuracy_score
@@ -165,7 +165,6 @@ def evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config,
         qid_to_ctx_rids = retrieve_ctxs(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config)
         test_info, aug_test_info, avg_shot_num = test(test_dataset,corpus,qid_to_ctx_rids,prompt_parser,task,llm)
     result_info = {
-        'ckpt':config.ckptname,
         'test_info':test_info,
         'aug_test_info':aug_test_info,
         'valid_info':config.valid_info,
@@ -185,8 +184,10 @@ def evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config,
         'lm_name':config.lm_name,
         'top_k':config.top_k,
         'dropout':config.dropout,
+        'ckpt':config.ckptname,
     }
     outfile = Path(config.taskpath)/'inference'/'infer_res.log'
+    outfile.parent.mkdir(exist_ok=True,parents=True)
     logger.info(f"test_info: {test_info}")
     with outfile.open('a') as f:
         f.write(json.dumps(result_info))
@@ -235,7 +236,7 @@ def main():
     logger.info('test_dataset: %d' % len(test_dataset))
     llm = CausalLM(ckpt_cfg)
     retriever, tensorizer, prompt_parser = init_retriever(ckpt_cfg,inference_only=True)
-    load_retriever_ckpt(retriever,ckptfn)
+    load_module_ckpt(retriever,ckptfn,"state_dict",retriever.device)
     res = evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,ckpt_cfg,llm,ckptname)
     print(res)
 
