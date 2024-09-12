@@ -109,7 +109,7 @@ def main(max_num_epochs=10):
         "label_loss_penalty": tune.qloguniform(1e-4, 10, 1e-4),
         "ortho_loss_penalty": tune.qloguniform(1e-2, 100, 1e-2),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
-        "top_k": tune.choice([80, 190]),
+        "top_k": tune.choice([40, 80, 190, 260]),
         "rand_neg": tune.choice([0, 1]),
         "multi_ctrs": tune.choice([0, 1]),
         "filter_positive": tune.choice([0, 1]),
