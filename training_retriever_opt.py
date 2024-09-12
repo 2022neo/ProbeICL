@@ -13,6 +13,8 @@ from training_retriever import train,valid,evaluate,prepare_trial
 from utils.tools import load_ckpt_cfg, load_module_ckpt
 import logging
 import os
+import numpy as np
+import random
 os.environ['TQDM_DISABLE'] = 'True'
 
 def parse_args():
@@ -39,6 +41,13 @@ def parse_args():
 
 
 def trial(param, cmd_args):
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+        torch.cuda.manual_seed(42)
+    np.random.seed(42)
+    random.seed(42)
+
     cfgpath = str(Path(cmd_args.taskpath)/"config.json")
     config = getConfig(cfgpath,cmd_args)
     for k,v in param.items():
@@ -95,9 +104,9 @@ def main(max_num_epochs=10):
     # setup space of hyperparameters
     space = {
         "lr": tune.qloguniform(1e-6, 1e-3, 1e-6),
-        "ctrs_loss_penalty": tune.quniform(1e-2, 1, 1e-2),
-        "label_loss_penalty": tune.quniform(1e-4, 10, 1e-4),
-        "ortho_loss_penalty": tune.quniform(1e-2, 100, 1e-2),
+        "ctrs_loss_penalty": tune.qloguniform(1e-4, 10, 1e-4),
+        "label_loss_penalty": tune.qloguniform(1e-4, 10, 1e-4),
+        "ortho_loss_penalty": tune.qloguniform(1e-2, 100, 1e-2),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
         "top_k": tune.choice([80, 190]),
         "rand_neg": tune.choice([0, 1]),
