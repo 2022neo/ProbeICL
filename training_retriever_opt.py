@@ -15,6 +15,8 @@ import logging
 import os
 import numpy as np
 import random
+from ray.tune.search.hyperopt import HyperOptSearch
+
 os.environ['TQDM_DISABLE'] = 'True'
 
 def parse_args():
@@ -76,7 +78,6 @@ def trial(param, cmd_args):
 
         with tempfile.TemporaryDirectory(dir=config.checkpoint_dir) as tmp_ckpt_dir:
             savepath = Path(tmp_ckpt_dir)/config.ckptname
-            # savepath.parent.mkdir(exist_ok=True,parents=True)
             config.ckptname=str(Path(savepath).relative_to(config.checkpoint_dir))
             save_content = {
                 'epoch':epc,
@@ -92,7 +93,7 @@ def trial(param, cmd_args):
             result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
             score=result_info["test_info"]["score"]
             ray.train.report(
-                {"score":score,"metric":result_info["test_info"]},
+                {"score":score,"metric":result_info["test_info"],"loss":train_loss},
                 checkpoint=checkpoint,
             )
 
@@ -114,16 +115,36 @@ def main(max_num_epochs=10):
         "filter_positive": tune.choice([0, 1]),
         "mask_type": tune.choice([0, 1, 2, 3]),
         "batch_size": tune.choice([8, 32]),
+        "epoches": tune.choice([4, 6]),
+        "temperature": tune.choice([1, 0.1, 0.01, 0.001]),
+        "hard_mask":tune.choice([1, 0]),
+    }
+    current_best_params = [{
+        "lr": 1e-5,
+        "ctrs_loss_penalty": 1,
+        "label_loss_penalty": 0.001,
+        "ortho_loss_penalty": 1,
+        "dropout": 0.2,
+        "top_k": 190,
+        "rand_neg": 0,
+        "multi_ctrs": 0,
+        "filter_positive": 1,
+        "mask_type": 3,
+        "batch_size": 8,
         "epoches": 6,
         "temperature": 1,
         "hard_mask":1,
-    }
+    }]
+    # for more search alg, refer to https://docs.ray.io/en/latest/tune/api/suggestion.html
+    searcher = HyperOptSearch(
+        metric="score", mode="max",points_to_evaluate=current_best_params
+    )
     # ASHAScheduler for early stopping
     scheduler = ASHAScheduler(
-        metric="score",
-        mode="max",
+        metric="loss",
+        mode="min",
         max_t=max_num_epochs,
-        grace_period=3,
+        grace_period=2,
         reduction_factor=2)
     # report in cmd
     reporter = CLIReporter(
@@ -133,10 +154,11 @@ def main(max_num_epochs=10):
     ray_dir.mkdir(exist_ok=True,parents=True)
     result = tune.run(
         partial(trial, cmd_args=cmd_args),
-        # allocate resource for training
         resources_per_trial={"cpu": cmd_args.cpus_per_trial, "gpu": cmd_args.gpus_per_trial},
         config=space,
         num_samples=cmd_args.num_samples,
+        max_concurrent_trials = torch.cuda.device_count()//cmd_args.gpus_per_trial,
+        search_alg=searcher,
         scheduler=scheduler,
         progress_reporter=reporter,
         local_dir=str(ray_dir)
