@@ -39,7 +39,7 @@ sh scripts/train.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa"
 We recommend writing unique training scripts for each task to try different parameters.
 The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/inference```
 
-We also provide ray-based scripts for searching hyperparameters:
+We also provide ray-based scripts for **Automatic Hyperparameter Search**:
 ```bash
 CUDA_VISIBLE_DEVICES="0,7" python training_retriever_opt.py --exps_dir "/mnt/16t_3/jiyuwen/projects/DPR/exps" --task_name "copa" --num_samples 100 --gpus_per_trial 1 --cpus_per_trial 32
 ```
