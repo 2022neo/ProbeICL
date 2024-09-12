@@ -26,14 +26,9 @@ def main():
         name = f'*{Path(inputfile).stem}*.jsonl'
         outputpath = Path(args.taskpath)/"scored"
         data = []
-        processed_ids = set([])
         for p in outputpath.rglob(name):
-            # data += [json.loads(line) for line in p.open('r')]
-            for line in p.open('r'):
-                entry = json.loads(line)
-                if entry['id'] not in processed_ids:
-                    processed_ids.add(entry['id'])
-                    data.append(entry)
+            data+=[json.loads(line) for line in p.open('r')]
+
         raw_data = get_raw_data(inputfile)
         assert len(raw_data)==len(data)
  
