@@ -44,7 +44,8 @@ We also provide ray-based scripts for searching hyperparameters:
 CUDA_VISIBLE_DEVICES="0,7" python training_retriever_opt.py --exps_dir "/mnt/16t_3/jiyuwen/projects/DPR/exps" --task_name "copa" --num_samples 100 --gpus_per_trial 1 --cpus_per_trial 32
 ```
 
-When CPU resource utilization is too low, you can decrease ```${cpus_per_trial}```; when individual GPU memory is less than 40GB, you can increase ```${gpus_per_trial}```.
+```${num_samples}``` represents the maximum number of parameter search iterations.
+When CPU resource utilization is too low, you can decrease ```${cpus_per_trial}```; when individual GPU memory is less than 40GB, you can increase ```${gpus_per_trial}```. 
 
 
 ## Inference <a name="Inference"></a>
