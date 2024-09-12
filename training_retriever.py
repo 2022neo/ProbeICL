@@ -15,7 +15,7 @@ import torch
 import argparse
 from utils.tools import getConfig
 from utils.metric import metric_dict
-from evaluating_tretriever import evaluate
+from evaluating_retriever import evaluate
 
 torch.manual_seed(42)
 if torch.cuda.is_available():

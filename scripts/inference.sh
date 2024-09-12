@@ -6,7 +6,7 @@ for file in "$exps_dir/$task_name/inference/saved_retriever"/*.pt; do
     if [ -f "$file" ]; then
         ckptname=$(basename "$file")
         echo "$ckptname"
-        CUDA_VISIBLE_DEVICES=$gpu_ids python evaluating_tretriever.py --exps_dir $exps_dir --task_name $task_name --ckptname $ckptname
+        CUDA_VISIBLE_DEVICES=$gpu_ids python evaluating_retriever.py --exps_dir $exps_dir --task_name $task_name --ckptname $ckptname
     else
         echo "No .pt files found."
     fi
