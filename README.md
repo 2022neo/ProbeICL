@@ -45,7 +45,7 @@ CUDA_VISIBLE_DEVICES="0,7" python training_retriever_opt.py --exps_dir "/mnt/16t
 ```
 
 ```${num_samples}``` represents the maximum number of parameter search iterations.
-When CPU resource utilization is too low, you can decrease ```${cpus_per_trial}```; when individual GPU memory is less than 40GB, you can increase ```${gpus_per_trial}```. If ```${train_ds}> 0```, the training set will be cut down to the size of ```${train_ds}``` for quick testing of algorithm performance (we set ```${train_ds}=400``` for COPA).
+When CPU resource utilization is too low, you can decrease ```${cpus_per_trial}```; when individual GPU memory is less than 40GB, you can increase ```${gpus_per_trial}```. If ```${train_ds}>0```, the training set will be cut down to the size of ```${train_ds}``` for quick testing of algorithm performance (we set ```${train_ds}=400``` for COPA).
 
 
 
