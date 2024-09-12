@@ -37,15 +37,16 @@ sh scripts/train.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa"
 ```
 
 We recommend writing unique training scripts for each task to try different parameters.
-The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/inference```
+The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/inference```.
 
 We also provide ray-based scripts for **Automatic Hyperparameter Search**:
 ```bash
-CUDA_VISIBLE_DEVICES="0,7" python training_retriever_opt.py --exps_dir "/mnt/16t_3/jiyuwen/projects/DPR/exps" --task_name "copa" --num_samples 100 --gpus_per_trial 1 --cpus_per_trial 32
+CUDA_VISIBLE_DEVICES="0,7" python training_retriever_opt.py --exps_dir "/mnt/16t_3/jiyuwen/projects/DPR/exps" --task_name "copa" --num_samples 100 --gpus_per_trial 1 --cpus_per_trial 32 --train_ds -1
 ```
 
 ```${num_samples}``` represents the maximum number of parameter search iterations.
-When CPU resource utilization is too low, you can decrease ```${cpus_per_trial}```; when individual GPU memory is less than 40GB, you can increase ```${gpus_per_trial}```. 
+When CPU resource utilization is too low, you can decrease ```${cpus_per_trial}```; when individual GPU memory is less than 40GB, you can increase ```${gpus_per_trial}```. If ```${train_ds}> 0```, the training set will be cut down to the size of ```${train_ds}``` for quick testing of algorithm performance.
+
 
 
 ## Inference <a name="Inference"></a>

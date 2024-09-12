@@ -11,9 +11,10 @@ for ctrs_loss_penalty in 1 0.1; do
                     for multi_ctrs in 0 1; do
                         for top_k in 80 190 220; do
                             filter_positive=1
+                            train_ds=-1
                             CUDA_VISIBLE_DEVICES=$gpu_ids python training_retriever.py \
                             --exps_dir $exps_dir --task_name $task_name --learning_rate 0.00001 --epoches 6 \
-                            --temperature 1 --hard_mask 1 --mask_type 3 --dropout $dropout \
+                            --temperature 1 --hard_mask 1 --mask_type 3 --dropout $dropout --train_ds $train_ds \
                             --ctrs_loss_penalty $ctrs_loss_penalty --label_loss_penalty $label_loss_penalty --ortho_loss_penalty $ortho_loss_penalty \
                             --top_k $top_k --multi_ctrs $multi_ctrs --rand_neg $rand_neg --filter_positive $filter_positive
                         done

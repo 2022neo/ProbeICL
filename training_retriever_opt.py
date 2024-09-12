@@ -36,6 +36,9 @@ def parse_args():
     parser.add_argument('--num_samples', 
                         type=int, help='', 
                         default=30)
+    parser.add_argument('--train_ds', 
+                        type=int, help='', 
+                        default=-1)
     args = parser.parse_args()
     args.config_file = str(Path(args.exps_dir)/args.task_name/'config.json')
     args.taskpath = str(Path(args.exps_dir)/args.task_name)

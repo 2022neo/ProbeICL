@@ -138,6 +138,7 @@ def main():
             "batch_size": 8,
             "k_shot": 3,
             "temperature":1,
+            "train_ds":-1,
             "hard_mask":False,
             "generate_max_len":100,
             "lm_name": cfg.llm_model,

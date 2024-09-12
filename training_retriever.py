@@ -67,6 +67,8 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
     retriever.train()
     idx_list = list(range(len(train_dataset)))
     random.shuffle(idx_list)
+    if "train_ds" in config and config.train_ds>0:
+        idx_list=idx_list[:config.train_ds]
     acc = []
     train_loss = 0.0
     total_ctrs_loss,total_label_loss,total_ortho_loss = 0.0,0.0,0.0
@@ -152,6 +154,7 @@ def parse_args():
     parser.add_argument("--epoches", type=int, default=6, help="")
     parser.add_argument("--k_shot", type=int, default=3, help="")
     parser.add_argument("--top_k", type=int, default=20, help="")
+    parser.add_argument("--train_ds", type=int, default=-1, help="")
     parser.add_argument("--multi_ctrs", type=int, choices=[0, 1], default=0, help="")
     parser.add_argument("--rand_neg", type=int, choices=[0, 1], default=0, help="")
     parser.add_argument("--hard_mask", type=int, choices=[0, 1], default=0, help="")
