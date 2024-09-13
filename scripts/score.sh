@@ -47,4 +47,4 @@ for IDX in $(seq 1 $CHUNKS); do
 done
 
 wait
-CUDA_VISIBLE_DEVICES=$gpu_ids  python init3_merge_scored_dataset.py --exps_dir $exps_dir --task_name $task_name
+CUDA_VISIBLE_DEVICES=$gpu_ids  python init3_merge_scored_dataset.py --exps_dir $exps_dir --task_name $task_name --num_chunks $num_chunks
