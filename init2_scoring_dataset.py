@@ -51,23 +51,25 @@ def scoring(raw_data, llm, outputfile, task, config):
                 }]
                 with torch.no_grad():
                     label_loss,pred = llm.inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
+                    ctx_entry['loss'] = label_loss.item()
+                    ctx_entry['pred'] = pred
                     if llm.option_num==1:
                         if pred is not None:
                             compute_metric=metric_dict[task.metric]
                             score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
-                            ctx_entry['loss'] = 1-score
                             ctx_entry['one_shot_acc']=score
                         else:
-                            ctx_entry['loss'] = label_loss.item()
                             ctx_entry['one_shot_acc']=1-label_loss.item()
-                        ctx_entry['pred'] = pred
                     elif llm.option_num>1:
-                        ctx_entry['pred']=pred
-                        ctx_entry['loss']=label_loss.item()
                         ctx_entry['one_shot_acc']=int(pred == label)
                     else:
                         raise NotImplementedError
-            entry['ctxs'] = sorted(entry['ctxs'],key = lambda x: x['loss']) 
+            if llm.option_num>1:
+                entry['ctxs'] = sorted(entry['ctxs'],key = lambda x: x['loss']) 
+            elif llm.option_num==1:
+                entry['ctxs'] = sorted(entry['ctxs'],key = lambda x: -x['one_shot_acc']) 
+            else:
+                raise NotImplementedError
             ans_file.write(json.dumps(entry) + "\n")
     pbar.close()
 

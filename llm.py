@@ -97,10 +97,9 @@ class CausalLM(nn.Module):
         if self.option_num>1:
             loss, pred =  self.choice_loss(input_ids,None,answer_list,test_label)
         elif self.option_num==1:
+            loss = self.completion_logits_loss(input_ids,None,answer_list)
             if force_pred:
                 pred = self.get_completion_pred(input_ids)
-            else:
-                loss = self.completion_logits_loss(input_ids,None,answer_list)
         else:
             raise NotImplementedError(f'loss for option_num={self.option_num} not implemented')
         return loss, pred
