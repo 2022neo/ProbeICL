@@ -30,6 +30,7 @@ setup_logger(logger)
 
 def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm):
     preds,aug_preds,all_labels = [],[],[]
+    losses,aug_losses = [],[]
     shot_num = []
     for jline in tqdm(testset):
         qid = jline["idx"]
@@ -46,13 +47,25 @@ def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm):
             for a in qid_to_ctx_rids[qid]
         ] 
         shot_num+=[len(ctx_entries)]
+        all_labels.append(label)
+
         label_loss,pred = llm.inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
         preds.append(pred)
-        label_loss,aug_pred = llm.aug_inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
-        aug_preds.append(aug_pred)
-        all_labels.append(label)
+        losses += [label_loss.item()] if isinstance(label_loss,torch.Tensor) else []
+
+        # aug_label_loss,aug_pred = llm.aug_inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
+        # aug_preds.append(aug_pred)
+        # aug_losses += [aug_label_loss.item()] if isinstance(aug_label_loss,torch.Tensor) else []
+        
     metric_info = calculate_metric(preds,all_labels,task)
-    aug_metric_info = calculate_metric(aug_preds,all_labels,task)
+    if len(losses)>0:
+        metric_info['loss']=float(f"{np.mean(losses):.6f}")
+
+    aug_metric_info=None
+    # aug_metric_info = calculate_metric(aug_preds,all_labels,task)
+    # if len(aug_losses)>0:
+    #     aug_metric_info['loss']=float(f"{np.mean(aug_losses):.6f}")
+
     avg_shot_num = np.mean(shot_num).item()
     return metric_info, aug_metric_info, avg_shot_num
 

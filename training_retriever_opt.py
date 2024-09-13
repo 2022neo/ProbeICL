@@ -95,8 +95,10 @@ def trial(param, cmd_args):
             checkpoint = Checkpoint.from_directory(tmp_ckpt_dir)
             result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
             score=result_info["test_info"]["score"]
+            test_loss=result_info["test_info"]["loss"]
+            valid_loss=valid_info["loss"]
             ray.train.report(
-                {"score":score,"metric":result_info["test_info"],"loss":train_loss},
+                {"score":score,"train_loss":train_loss,"test_loss":test_loss,valid_loss:"valid_loss"},
                 checkpoint=checkpoint,
             )
 
@@ -107,19 +109,19 @@ def main(max_num_epochs=10):
 
     # setup space of hyperparameters
     space = {
-        "lr": tune.qloguniform(1e-6, 1e-3, 1e-6),
-        "ctrs_loss_penalty": tune.qloguniform(1e-4, 10, 1e-4),
-        "label_loss_penalty": tune.qloguniform(1e-4, 10, 1e-4),
-        "ortho_loss_penalty": tune.qloguniform(1e-2, 100, 1e-2),
+        "lr": tune.choice([1e-7*(10**a) for a in range(5)]),
+        "ctrs_loss_penalty": tune.choice([1e-4*(10**a) for a in range(5)]),
+        "label_loss_penalty": tune.choice([1e-4*(10**a) for a in range(7)]),
+        "ortho_loss_penalty": tune.choice([1e-2*(10**a) for a in range(5)]),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
-        "top_k": tune.choice([40, 80, 190, 260]),
+        "top_k": tune.choice([40, 80, 180, 220]),
         "rand_neg": tune.choice([0, 1]),
         "multi_ctrs": tune.choice([0, 1]),
         "filter_positive": tune.choice([0, 1]),
         "mask_type": tune.choice([0, 1, 2, 3]),
-        "batch_size": tune.choice([8, 32]),
-        "epoches": tune.choice([4, 6]),
-        "temperature": tune.choice([1, 0.1, 0.01, 0.001]),
+        "batch_size": tune.choice([8, 32, 128]),
+        "epoches": tune.choice(list(range(1,7))),
+        "temperature": tune.choice([1, 0.1, 0.01]),
         "hard_mask":tune.choice([1, 0]),
     }
     current_best_params = [{
@@ -128,7 +130,7 @@ def main(max_num_epochs=10):
         "label_loss_penalty": 0.001,
         "ortho_loss_penalty": 1,
         "dropout": 0.2,
-        "top_k": 190,
+        "top_k": 180,
         "rand_neg": 0,
         "multi_ctrs": 0,
         "filter_positive": 1,
@@ -144,14 +146,14 @@ def main(max_num_epochs=10):
     )
     # ASHAScheduler for early stopping
     scheduler = ASHAScheduler(
-        metric="loss",
+        metric="train_loss",
         mode="min",
         max_t=max_num_epochs,
         grace_period=2,
         reduction_factor=2)
     # report in cmd
     reporter = CLIReporter(
-        metric_columns=["score", "loss"])
+        metric_columns=["score", "train_loss", "test_loss","valid_loss"])
     # start to train
     ray_dir = Path(cmd_args.taskpath)/'inference'/'_ray'
     ray_dir.mkdir(exist_ok=True,parents=True)

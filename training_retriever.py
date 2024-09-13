@@ -28,6 +28,7 @@ setup_logger(logger)
 
 
 def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
+    retriever.eval()
     idx_list = list(range(len(dataset)))
     all_score,all_loss,all_skew = [],[],[]
     pbar = tqdm(total=len(idx_list), desc=f"Valid on Epoch {epoch} ...")
@@ -53,9 +54,9 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
             all_score+=[score]
             all_skew.append(np.mean(skew).item())
     valid_info = {
-        'AVG_SCORE': float(f"{np.mean(all_score).item()*100:.1f}") if len(all_score)>0 else None,
-        'AVG_LOSS': float(f"{np.mean(all_loss).item():.6f}") if len(all_loss)>0 else None,
-        'AVG_SKEW': float(f"{np.mean(all_skew).item()*100:.3f}") if len(all_skew)>0 else None,
+        'score': float(f"{np.mean(all_score).item()*100:.1f}") if len(all_score)>0 else None,
+        'loss': float(f"{np.mean(all_loss).item():.6f}") if len(all_loss)>0 else None,
+        'skew': float(f"{np.mean(all_skew).item()*100:.3f}") if len(all_skew)>0 else None,
     }
     pbar.close()
     config['valid_info']=valid_info
@@ -63,8 +64,8 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
 
 
 def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epoch):
-    config.update_cnt = config.update_cnt if 'update_cnt' in config else 0
     retriever.train()
+    config.update_cnt = config.update_cnt if 'update_cnt' in config else 0
     idx_list = list(range(len(train_dataset)))
     random.shuffle(idx_list)
     if "train_ds" in config and config.train_ds>0:
@@ -90,14 +91,15 @@ def train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scale
         loss = config.ortho_loss_penalty*ortho_loss
 
         # caculate contrastive loss
-        if config.multi_ctrs and config.option_num>1 and len(data.positive_idx_list)<len(ctx_entries) and len(data.positive_idx_list)>0:
-            pos_idx_list_per_question = data.positive_idx_list
-            ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
-        else:
-            pos_idx_list_per_question = [0]
-            ctrs_loss = retriever.get_ctrs_loss(similarity,pos_idx_list_per_question)
-        total_ctrs_loss+=ctrs_loss.item()
-        loss+=config.ctrs_loss_penalty*ctrs_loss
+        if len(data.positive_idx_list)>0:
+            if config.multi_ctrs:
+                pos_idx_list_per_question = data.positive_idx_list
+                ctrs_loss = retriever.get_multi_ctrs_loss(similarity,pos_idx_list_per_question)
+            else:
+                pos_idx_list_per_question = [0]
+                ctrs_loss = retriever.get_ctrs_loss(similarity,pos_idx_list_per_question)
+            total_ctrs_loss+=ctrs_loss.item()
+            loss+=config.ctrs_loss_penalty*ctrs_loss
 
         # get k-shot mask
         mask, selected_ctxs = retriever.get_training_mask(similarity,ctx_entries,epoch,config.mask_type)
@@ -227,7 +229,7 @@ def main():
     
     # TRAIN
     for epc in range(1,config.epoches+1):
-        train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
+        # train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
         result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
         # valid test infomation will be saved to ${config.taskpath}/inference/infer_res.log
