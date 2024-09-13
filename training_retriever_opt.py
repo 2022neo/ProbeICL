@@ -72,8 +72,8 @@ def trial(param, cmd_args):
                 load_module_ckpt(retriever,ckptfn,"state_dict",device)
                 load_module_ckpt(optimizer,ckptfn,"optimizer_state",device)
                 load_module_ckpt(scheduler,ckptfn,"scheduler_state",device)
-            start_epoch = config["epoch"]+1
-
+                start_epoch = config["epoch"]+1
+                print(f"Start from epoch {start_epoch}! (Resume from {ckptfn})")
 
     for epc in range(start_epoch,config.epoches+1):
         train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
