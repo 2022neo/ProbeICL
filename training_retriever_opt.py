@@ -182,7 +182,8 @@ def main(max_num_epochs=10):
         search_alg=searcher,
         scheduler=scheduler,
         progress_reporter=reporter,
-        local_dir=str(ray_dir)
+        local_dir=str(ray_dir),
+        resume="AUTO",
         )
  
     # find the best trial
