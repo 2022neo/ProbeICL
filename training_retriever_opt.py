@@ -11,7 +11,7 @@ from functools import partial
 import argparse
 from training_retriever import train,valid,evaluate,prepare_trial
 from utils.tools import load_ckpt_cfg, load_module_ckpt
-import logging
+import shutil
 import os
 import numpy as np
 import random
@@ -101,6 +101,23 @@ def trial(param, cmd_args):
                 checkpoint=checkpoint,
             )
 
+def reproduce_trial(best_trial):
+    torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(42)
+        torch.cuda.manual_seed(42)
+    np.random.seed(42)
+    random.seed(42)
+    best_checkpoint_dir = best_trial.checkpoint.value
+    ckptfn = str(list(Path(best_checkpoint_dir).rglob('*.pt'))[0])
+    Path(config.checkpoint_dir).mkdir(exist_ok=True,parents=True)
+    shutil.copy2(ckptfn, config.checkpoint_dir)
+    config = load_ckpt_cfg(ckptfn)
+    train_dataset,valid_dataset,test_dataset,llm,retriever,tensorizer,optimizer,scheduler,scaler,prompt_parser,task = prepare_trial(config)
+    device = retriever.device
+    load_module_ckpt(retriever,ckptfn,"state_dict",device)
+    result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,config["epoch"])
+    return result_info
 
 def main(max_num_epochs=10):
     cmd_args = parse_args()
