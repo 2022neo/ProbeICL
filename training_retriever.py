@@ -177,7 +177,6 @@ def prepare_trial(config):
     task = task_map.cls_dic[config.task_name]()
     config.option_num=task.class_num
     checkpoint_dir=Path(config.taskpath)/'inference'/'saved_retriever'
-    checkpoint_dir.mkdir(exist_ok=True,parents=True)
     config.checkpoint_dir=str(checkpoint_dir)
     train_dataset = ProbeIclDataset(
         data_files=config.train_files,

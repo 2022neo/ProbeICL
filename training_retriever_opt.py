@@ -79,8 +79,8 @@ def trial(param, cmd_args):
         train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
 
-        with tempfile.TemporaryDirectory(dir=config.checkpoint_dir) as tmp_ckpt_dir:
-            savepath = Path(tmp_ckpt_dir)/config.ckptname
+        with tempfile.TemporaryDirectory(dir=config.cache_dir) as checkpoint_dir:
+            savepath = Path(checkpoint_dir)/config.ckptname
             save_content = {
                 'epoch':epc,
                 'train_loss':train_loss,
@@ -91,7 +91,7 @@ def trial(param, cmd_args):
                 'config':config,
             }
             torch.save(save_content, str(savepath))
-            checkpoint = Checkpoint.from_directory(tmp_ckpt_dir)
+            checkpoint = Checkpoint.from_directory(checkpoint_dir)
             result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
             score=result_info["test_info"]["score"]
             test_loss=result_info["test_info"]["loss"]
@@ -100,7 +100,6 @@ def trial(param, cmd_args):
                 {"score":score,"train_loss":train_loss,"test_loss":test_loss,"valid_loss":valid_loss},
                 checkpoint=checkpoint,
             )
-
 
 
 def main(max_num_epochs=10):
