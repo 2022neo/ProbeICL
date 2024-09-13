@@ -58,7 +58,9 @@ def trial(param, cmd_args):
     for k,v in param.items():
         config[k]=v
 
+    start_epoch = 1
     train_dataset,valid_dataset,test_dataset,llm,retriever,tensorizer,optimizer,scheduler,scaler,prompt_parser,task = prepare_trial(config)
+    
     checkpoint = get_checkpoint()
     if checkpoint:
         with checkpoint.as_directory() as checkpoint_dir:
@@ -71,8 +73,6 @@ def trial(param, cmd_args):
                 load_module_ckpt(optimizer,ckptfn,"optimizer_state",device)
                 load_module_ckpt(scheduler,ckptfn,"scheduler_state",device)
             start_epoch = config["epoch"]+1
-    else:
-        start_epoch = 1
 
 
     for epc in range(start_epoch,config.epoches+1):
@@ -81,7 +81,6 @@ def trial(param, cmd_args):
 
         with tempfile.TemporaryDirectory(dir=config.checkpoint_dir) as tmp_ckpt_dir:
             savepath = Path(tmp_ckpt_dir)/config.ckptname
-            config.ckptname=str(Path(savepath).relative_to(config.checkpoint_dir))
             save_content = {
                 'epoch':epc,
                 'train_loss':train_loss,
@@ -98,7 +97,7 @@ def trial(param, cmd_args):
             test_loss=result_info["test_info"]["loss"]
             valid_loss=valid_info["loss"]
             ray.train.report(
-                {"score":score,"train_loss":train_loss,"test_loss":test_loss,valid_loss:"valid_loss"},
+                {"score":score,"train_loss":train_loss,"test_loss":test_loss,"valid_loss":valid_loss},
                 checkpoint=checkpoint,
             )
 
@@ -106,7 +105,7 @@ def trial(param, cmd_args):
 
 def main(max_num_epochs=10):
     cmd_args = parse_args()
-
+    ray.init()
     # setup space of hyperparameters
     space = {
         "learning_rate": tune.choice([1e-7,1e-6,1e-5,1e-4,1e-3]),
@@ -161,6 +160,7 @@ def main(max_num_epochs=10):
         partial(trial, cmd_args=cmd_args),
         resources_per_trial={"cpu": cmd_args.cpus_per_trial, "gpu": cmd_args.gpus_per_trial},
         config=space,
+        name=cmd_args.task_name,
         num_samples=cmd_args.num_samples,
         max_concurrent_trials = torch.cuda.device_count()//cmd_args.gpus_per_trial,
         search_alg=searcher,
