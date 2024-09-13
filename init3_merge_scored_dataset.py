@@ -15,7 +15,7 @@ def parse_args():
                         required=True)
     parser.add_argument('--num_chunks', 
                         type=int, help='Number of chunks for Parallelism Scoring', 
-                        default=1)
+                        required=True)
     args = parser.parse_args()
     args.config_file = str(Path(args.exps_dir)/args.task_name/'config.json')
     args.taskpath = str(Path(args.exps_dir)/args.task_name)
