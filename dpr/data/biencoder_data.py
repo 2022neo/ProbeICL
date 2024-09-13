@@ -235,7 +235,7 @@ class ProbeIclDataset(Dataset):
             positive_idx_list = [
                 i for i,ctx_entry in enumerate(entry["ctxs"][:self.top_k]) 
                 if (entry["ctxs"][0]["one_shot_acc"]==True or entry["ctxs"][0]["one_shot_acc"] > 0)
-            ]
+            ] if self.cfg.option_num>1 else [0]
 
             # random example
             filtered_prompt_pool = [prompt for prompt in self.prompt_pool if prompt['id'] not in scored_ids]
@@ -276,7 +276,7 @@ class ProbeIclDataset(Dataset):
             self.data.append(self.get_entry(entry))
         # filter out those without positive ctx
         if self.loss_type == 'dpr':
-            self.data = [r for r in self.data if len(r["positive_idx_list"])>0] if (training and self.cfg.filter_positive and self.cfg.option_num>1) else self.data
+            self.data = [r for r in self.data if len(r["positive_idx_list"])>0] if (training and self.cfg.filter_positive) else self.data
             logger.info("filter out data for : {}".format(len(raw_data) - len(self.data)))
             logger.info("Total filtered data size: {}".format(len(self.data)))
         else:

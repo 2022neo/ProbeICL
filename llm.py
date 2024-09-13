@@ -98,7 +98,7 @@ class CausalLM(nn.Module):
             loss, pred =  self.choice_loss(input_ids,None,answer_list,test_label)
         elif self.option_num==1:
             if force_pred:
-                pred = self.get_completion_pred(input_ids,answer_list)
+                pred = self.get_completion_pred(input_ids)
             else:
                 loss = self.completion_logits_loss(input_ids,None,answer_list)
         else:
@@ -118,7 +118,7 @@ class CausalLM(nn.Module):
             loss, pred = self.choice_loss(input_ids,None,answer_list,test_label)
         elif self.option_num==1:
             if force_pred:
-                pred = self.get_completion_pred(input_ids,answer_list)
+                pred = self.get_completion_pred(input_ids)
             else:
                 loss = self.completion_logits_loss(input_ids,None,answer_list)
         else:
@@ -185,15 +185,16 @@ class CausalLM(nn.Module):
         loss = torch.gather(logit_losses, -1, ans_ids.unsqueeze(-1)).mean()
         return loss
 
-    def get_completion_pred(self, input_ids, answer_list):
-        ans_ids,_ = self.text_to_tensor(answer_list[0],title=None)
-        option_ids = torch.cat(input_ids+[ans_ids],dim=-1)
-        answer_start = int(option_ids.shape[-1])
-        res = self.model.generate(input_ids=option_ids, #remove the dim for option_num
+    def get_completion_pred(self, input_ids):
+        # ans_ids,_ = self.text_to_tensor(answer_list[0],title=None)
+        # option_ids = torch.cat(input_ids+[ans_ids],dim=-1)
+        answer_start = int(input_ids.shape[-1])
+        res = self.model.generate(input_ids=input_ids, #remove the dim for option_num
                                     eos_token_id=self.tokenizer.encode("\n")[0],
                                     pad_token_id=self.tokenizer.pad_token_id,
                                     max_length=min(self.max_length,answer_start+self.generate_max_len),
-                                    do_sample=False)
+                                    do_sample=False,
+                                    )
         pred_ids=res[:,answer_start:].squeeze(0)
         pred=self.tokenizer.decode(pred_ids,skip_special_tokens=True)
         if '\n' not in pred: pred+='\n' 
