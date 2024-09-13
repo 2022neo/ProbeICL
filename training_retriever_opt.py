@@ -120,7 +120,7 @@ def main(max_num_epochs=10):
         "mask_type": tune.choice([0, 1, 2, 3]),
         "batch_size": tune.choice([8, 32, 128]),
         "epoches": tune.choice(list(range(1,7))),
-        "temperature": tune.choice([1, 0.1, 0.01]),
+        "temperature": tune.choice([10, 1, 0.1, 0.01]),
         "hard_mask":tune.choice([1, 0]),
     }
     current_best_params = [{
