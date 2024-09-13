@@ -200,7 +200,6 @@ class CausalLM(nn.Module):
         return pred
 
 
-
     # def completion_losses(self,input_ids,input_atten_mask,labels,task):
     #     with torch.no_grad():
     #         answer_start = int(input_atten_mask.shape[-1]) 

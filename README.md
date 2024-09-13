@@ -11,7 +11,7 @@ Our pipeline contains 3 main stages: Scoring, Training, and Inference. You can s
 
 We now have following tasks to run:
 ```
-tasklist=(copa arc_c arc_e openbookqa mrpc qqp paws mnli qnli snli rte sst2 sst5 sentiment140 hellaswag ag_news roc_story roc_ending gigaword aeslc common_gen e2e_nlg)
+tasklist=(copa mrpc arc_c arc_e openbookqa qqp paws mnli qnli snli rte sst2 sst5 sentiment140 hellaswag ag_news roc_story roc_ending gigaword aeslc common_gen e2e_nlg)
 ```
 
 
