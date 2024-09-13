@@ -13,6 +13,9 @@ def parse_args():
     parser.add_argument('--exps_dir', 
                         type=str, help='Directory for saving all the intermediate and final outputs.', 
                         required=True)
+    parser.add_argument('--num_chunks', 
+                        type=int, help='Number of chunks for Parallelism Scoring', 
+                        default=1)
     args = parser.parse_args()
     args.config_file = str(Path(args.exps_dir)/args.task_name/'config.json')
     args.taskpath = str(Path(args.exps_dir)/args.task_name)
@@ -23,7 +26,7 @@ def main():
     cfgpath = args.config_file
     config = getConfig(cfgpath,args)
     for inputfile in config.output_unscored_files:
-        name = f'*{Path(inputfile).stem}*.jsonl'
+        name = f'*{Path(inputfile).stem}_{config.num_chunks}*.jsonl'
         outputpath = Path(args.taskpath)/"scored"
         data = []
         for p in outputpath.rglob(name):
