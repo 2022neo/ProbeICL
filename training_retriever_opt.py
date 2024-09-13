@@ -109,10 +109,10 @@ def main(max_num_epochs=10):
 
     # setup space of hyperparameters
     space = {
-        "lr": tune.choice([1e-7*(10**a) for a in range(5)]),
-        "ctrs_loss_penalty": tune.choice([1e-4*(10**a) for a in range(5)]),
-        "label_loss_penalty": tune.choice([1e-4*(10**a) for a in range(7)]),
-        "ortho_loss_penalty": tune.choice([1e-2*(10**a) for a in range(5)]),
+        "learning_rate": tune.choice([1e-7,1e-6,1e-5,1e-4,1e-3]),
+        "ctrs_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1]),
+        "label_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
+        "ortho_loss_penalty": tune.choice([1e-2,1e-1,1,10,100]),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
         "top_k": tune.choice([40, 80, 180, 220]),
         "rand_neg": tune.choice([0, 1]),
@@ -125,7 +125,7 @@ def main(max_num_epochs=10):
         "hard_mask":tune.choice([1, 0]),
     }
     current_best_params = [{
-        "lr": 1e-5,
+        "learning_rate": 1e-5,
         "ctrs_loss_penalty": 1,
         "label_loss_penalty": 0.001,
         "ortho_loss_penalty": 1,
