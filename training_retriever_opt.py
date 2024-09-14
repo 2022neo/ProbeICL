@@ -78,6 +78,7 @@ def trial(param, cmd_args):
     for epc in range(start_epoch,config.epoches+1):
         train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
+        result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
 
         with tempfile.TemporaryDirectory(dir=config.cache_dir) as checkpoint_dir:
             savepath = Path(checkpoint_dir)/config.ckptname
@@ -92,7 +93,6 @@ def trial(param, cmd_args):
             }
             torch.save(save_content, str(savepath))
             checkpoint = Checkpoint.from_directory(checkpoint_dir)
-            result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
             score=result_info["test_info"]["score"]
             test_loss=result_info["test_info"]["loss"]
             valid_loss=valid_info["loss"]
@@ -129,7 +129,7 @@ def main(max_num_epochs=10):
         "label_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
         "ortho_loss_penalty": tune.choice([1e-2,1e-1,1,10,100]),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
-        "top_k": tune.choice([40, 80, 190, 220, 400]),
+        "top_k": tune.choice([100, 200, 300]),
         "rand_neg": tune.choice([0, 1]),
         "multi_ctrs": tune.choice([0, 1]),
         "filter_positive": tune.choice([0, 1]),
@@ -145,7 +145,7 @@ def main(max_num_epochs=10):
         "label_loss_penalty": 0.001,
         "ortho_loss_penalty": 1,
         "dropout": 0.2,
-        "top_k": 190,
+        "top_k": 200,
         "rand_neg": 0,
         "multi_ctrs": 0,
         "filter_positive": 1,
