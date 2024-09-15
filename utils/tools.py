@@ -6,8 +6,11 @@ from metric import metric_dict,compute_metrics
 import numpy as np
 
 def calculate_metric(preds,labels,task):
-    compute_metric=metric_dict[task.metric]
-    scores=compute_metric(preds=preds, labels=labels, return_list=True)
+    if task.class_num>1:
+        scores = [int(preds[i] == labels[i]) for i in range(len(preds))]
+    else:
+        compute_metric=metric_dict[task.metric]
+        scores=compute_metric(preds=preds, labels=labels, return_list=True)
     metric_info = compute_metrics(metric=task.metric,preds=preds, labels=labels)
     metric_info["score"]=float(f"{np.mean(scores).item()*100:.1f}")
     return metric_info
