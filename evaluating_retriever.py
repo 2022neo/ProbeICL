@@ -15,9 +15,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from retriever import init_retriever
-from utils.tools import load_ckpt_cfg, load_module_ckpt
+from utils.tools import load_ckpt_cfg, load_module_ckpt, calculate_metric
 import json
-from utils.metric import metric_dict,compute_metrics
 from sklearn.metrics import f1_score, accuracy_score
 logger = logging.getLogger()
 setup_logger(logger)
@@ -69,13 +68,6 @@ def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm):
     avg_shot_num = np.mean(shot_num).item()
     return metric_info, aug_metric_info, avg_shot_num
 
-
-def calculate_metric(preds,labels,task):
-    compute_metric=metric_dict[task.metric]
-    scores=compute_metric(preds=preds, labels=labels, return_list=True)
-    metric_info = compute_metrics(metric=task.metric,preds=preds, labels=labels)
-    metric_info["score"]=float(f"{np.mean(scores).item()*100:.1f}")
-    return metric_info
 
 def gen_ctx_vectors(corpus, retriever, tensorizer, prompt_parser, task):
     results = []

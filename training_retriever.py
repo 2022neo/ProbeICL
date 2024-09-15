@@ -47,11 +47,12 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
             ranks = ranks.tolist()
             n = len(ranks)-1
             skew = [abs(rank-idx)/n for idx,rank in enumerate(ranks)]
-            # if llm.option_num>1:
-            #     all_score+=[int(pred == label)]
-            compute_metric=metric_dict[task.metric]
-            score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
-            all_score+=[score]
+            if llm.option_num>1:
+                all_score+=[int(pred == label)]
+            else:
+                compute_metric=metric_dict[task.metric]
+                score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
+                all_score+=[score]
             all_skew.append(np.mean(skew).item())
     valid_info = {
         'score': float(f"{np.mean(all_score).item()*100:.1f}") if len(all_score)>0 else None,

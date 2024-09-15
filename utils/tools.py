@@ -2,6 +2,15 @@ from easydict import EasyDict as edict
 import json
 from pathlib import Path
 import torch
+from metric import metric_dict,compute_metrics
+
+def calculate_metric(preds,labels,task):
+    compute_metric=metric_dict[task.metric]
+    scores=compute_metric(preds=preds, labels=labels, return_list=True)
+    metric_info = compute_metrics(metric=task.metric,preds=preds, labels=labels)
+    metric_info["score"]=float(f"{np.mean(scores).item()*100:.1f}")
+    return metric_info
+
 
 def getConfig(cfg_path,cmd_args):
     config_path = cfg_path # './exps/copa/config.json'
