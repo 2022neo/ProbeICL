@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import torch
 from metric import metric_dict,compute_metrics
+import numpy as np
 
 def calculate_metric(preds,labels,task):
     compute_metric=metric_dict[task.metric]

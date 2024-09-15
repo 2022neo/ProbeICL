@@ -17,7 +17,6 @@ from pathlib import Path
 from retriever import init_retriever
 from utils.tools import load_ckpt_cfg, load_module_ckpt, calculate_metric
 import json
-from sklearn.metrics import f1_score, accuracy_score
 logger = logging.getLogger()
 setup_logger(logger)
 
