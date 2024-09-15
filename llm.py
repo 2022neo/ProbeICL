@@ -116,10 +116,9 @@ class CausalLM(nn.Module):
         if self.option_num>1:
             loss, pred = self.choice_loss(input_ids,None,answer_list,test_label)
         elif self.option_num==1:
+            loss = self.completion_logits_loss(input_ids,None,answer_list)
             if force_pred:
                 pred = self.get_completion_pred(input_ids)
-            else:
-                loss = self.completion_logits_loss(input_ids,None,answer_list)
         else:
             raise NotImplementedError(f'loss for option_num={self.option_num} not implemented')
         return loss, pred
@@ -185,8 +184,7 @@ class CausalLM(nn.Module):
         return loss
 
     def get_completion_pred(self, input_ids):
-        # ans_ids,_ = self.text_to_tensor(answer_list[0],title=None)
-        # option_ids = torch.cat(input_ids+[ans_ids],dim=-1)
+        input_ids = torch.cat(input_ids,dim=-1)
         answer_start = int(input_ids.shape[-1])
         res = self.model.generate(input_ids=input_ids, #remove the dim for option_num
                                     eos_token_id=self.tokenizer.encode("\n")[0],

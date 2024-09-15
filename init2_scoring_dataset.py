@@ -54,12 +54,9 @@ def scoring(raw_data, llm, outputfile, task, config):
                     ctx_entry['loss'] = label_loss.item()
                     ctx_entry['pred'] = pred
                     if llm.option_num==1:
-                        if pred is not None:
-                            compute_metric=metric_dict[task.metric]
-                            score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
-                            ctx_entry['one_shot_acc']=score
-                        else:
-                            ctx_entry['one_shot_acc']=1-label_loss.item()
+                        compute_metric=metric_dict[task.metric]
+                        score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
+                        ctx_entry['one_shot_acc']=score
                     elif llm.option_num>1:
                         ctx_entry['one_shot_acc']=int(pred == label)
                     else:
