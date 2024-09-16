@@ -2,8 +2,6 @@ from transformers import AutoModelForCausalLM,AutoTokenizer,GPTNeoForCausalLM
 import torch
 from torch import nn
 from torch import Tensor as T
-from easydict import EasyDict as edict
-from utils.metric import metric_dict
 from pathlib import Path
 
 def get_model_max_length(model_name):
