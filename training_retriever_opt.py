@@ -123,21 +123,37 @@ def main(max_num_epochs=10):
     cmd_args = parse_args()
     ray.init()
     # setup space of hyperparameters
+    # space = {
+    #     "learning_rate": tune.choice([1e-7,1e-6,1e-5,1e-4,1e-3]),
+    #     "ctrs_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1]),
+    #     "label_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
+    #     "ortho_loss_penalty": tune.choice([1e-2,1e-1,1,10,100]),
+    #     "dropout": tune.choice([0.2, 0.1, 0.3]),
+    #     "top_k": tune.choice([100, 200, 300]),
+    #     "rand_neg": tune.choice([0, 1]),
+    #     "multi_ctrs": tune.choice([0, 1]),
+    #     "filter_positive": tune.choice([0, 1]),
+    #     "mask_type": tune.choice([0, 1, 2, 3]),
+    #     "batch_size": tune.choice([8, 32, 128]),
+    #     "epoches": tune.choice(list(range(1,7))),
+    #     "temperature": tune.choice([10, 1, 0.1, 0.01]),
+    #     "hard_mask":tune.choice([1, 0]),
+    # }
     space = {
         "learning_rate": tune.choice([1e-7,1e-6,1e-5,1e-4,1e-3]),
         "ctrs_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1]),
         "label_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
         "ortho_loss_penalty": tune.choice([1e-2,1e-1,1,10,100]),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
-        "top_k": tune.choice([100, 200, 300]),
+        "top_k": tune.choice([100, 200]),
         "rand_neg": tune.choice([0, 1]),
         "multi_ctrs": tune.choice([0, 1]),
         "filter_positive": tune.choice([0, 1]),
-        "mask_type": tune.choice([0, 1, 2, 3]),
-        "batch_size": tune.choice([8, 32, 128]),
-        "epoches": tune.choice(list(range(1,7))),
-        "temperature": tune.choice([10, 1, 0.1, 0.01]),
-        "hard_mask":tune.choice([1, 0]),
+        "mask_type": tune.choice([1, 3]),
+        "batch_size": 8,
+        "epoches": 6,
+        "temperature": 1,
+        "hard_mask":1,
     }
     current_best_params = [{
         "learning_rate": 1e-5,
@@ -183,7 +199,7 @@ def main(max_num_epochs=10):
         scheduler=scheduler,
         progress_reporter=reporter,
         local_dir=str(ray_dir),
-        resume="AUTO",
+        resume="AUTO+ERRORED",
         )
  
     # find the best trial

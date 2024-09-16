@@ -2,7 +2,7 @@ from easydict import EasyDict as edict
 import json
 from pathlib import Path
 import torch
-from metric import metric_dict,compute_metrics
+from utils.metric import metric_dict,compute_metrics
 import numpy as np
 
 def calculate_metric(preds,labels,task):
