@@ -36,7 +36,6 @@ def load_ckpt_cfg(ckptfn):
     ckpt = torch.load(ckptfn,map_location='cpu')
     ckpt_cfg = ckpt['config']
     ckpt_cfg['train_loss']=ckpt['train_loss']
-    ckpt_cfg['train_acc']=ckpt['train_acc']
     ckpt_cfg['epoch']=ckpt['epoch']
     return ckpt_cfg
 

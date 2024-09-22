@@ -12,7 +12,6 @@ from torch import nn
 from enum import Enum
 from torch.cuda.amp import GradScaler
 import re
-import torch.optim as optim
 import torch.nn.functional as F
 
 class ENCODER_TYPE(Enum):
@@ -139,50 +138,6 @@ class Retriever(nn.Module):
         rsv_eye = 1 - torch.eye(self.cfg.k_shot).to(norm_sim.device)
         ortho_loss = (norm_sim @ norm_sim.T * rsv_eye).sum()/rsv_eye.sum()
         return ortho_loss
-    
-    def _parse_sim_matrix(self,sim_matrix):
-        with torch.no_grad():
-            _,candidate_ids = torch.topk(sim_matrix, self.cfg.k_shot,dim=-1)
-            indices = []
-            for inds in candidate_ids.tolist():
-                for ind in inds:
-                    if ind not in indices:
-                        indices.append(ind)
-                        break
-            indices = torch.tensor(indices).unsqueeze(-1).to(sim_matrix.device)
-        mask = torch.gather(sim_matrix,-1,indices)
-        mask,indices = mask.reshape(-1), indices.reshape(-1)
-        return mask,indices
-
-    def get_training_mask(self,similarity,ctx_entries,epoch,mask_type):
-        if mask_type==0:
-            soft_mask,indices = torch.topk(similarity.softmax(dim=-1), 1,dim=-1)
-            soft_mask,indices = soft_mask.reshape(-1), indices.reshape(-1)
-            selected_ctxs = [ctx_entries[a] for a in indices.tolist()]
-            if self.cfg.hard_mask:
-                mask = torch.ones_like(soft_mask).to(soft_mask.device) - soft_mask.detach() + soft_mask 
-            else:
-                mask = soft_mask
-        if mask_type==1:
-            soft_mask,indices = self._parse_sim_matrix(
-                similarity.softmax(dim=-1)
-            )
-            selected_ctxs = [ctx_entries[a] for a in indices.tolist()]
-            if self.cfg.hard_mask:
-                mask = torch.ones_like(soft_mask).to(soft_mask.device) - soft_mask.detach() + soft_mask 
-            else:
-                mask = soft_mask
-        elif mask_type==2:
-            mask, indices = self._parse_sim_matrix(
-                F.gumbel_softmax(similarity, tau=self.cfg.temperature, hard=self.cfg.hard_mask, dim=-1)
-            )
-            selected_ctxs = [ctx_entries[a] for a in indices.tolist()]
-        elif mask_type==3:
-            mask, indices = self._parse_sim_matrix(
-                F.gumbel_softmax(similarity, tau=self.cfg.temperature/epoch**2, hard=self.cfg.hard_mask, dim=-1)
-            )
-            selected_ctxs = [ctx_entries[a] for a in indices.tolist()]
-        return mask, selected_ctxs
     
     def get_ctrs_loss(self,similarity,pos_idx_list_per_question):
         log_scores, _ = similarity.log_softmax(dim=-1).max(dim=0,keepdim=True) # [1, L]

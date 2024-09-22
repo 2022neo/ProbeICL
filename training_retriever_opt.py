@@ -35,7 +35,7 @@ def parse_args():
                         default=32)
     parser.add_argument('--num_samples', 
                         type=int, help='', 
-                        default=30)
+                        default=3000)
     parser.add_argument('--train_ds', 
                         type=int, help='', 
                         default=-1)
@@ -76,7 +76,7 @@ def trial(param, cmd_args):
                 print(f"Start from epoch {start_epoch}! (Resume from {ckptfn})")
 
     for epc in range(start_epoch,config.epoches+1):
-        train_loss,acc = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
+        train_loss = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
         result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
 
@@ -85,7 +85,6 @@ def trial(param, cmd_args):
             save_content = {
                 'epoch':epc,
                 'train_loss':train_loss,
-                'train_acc':acc,
                 'state_dict':retriever.state_dict(),
                 'optimizer_state':optimizer.state_dict(),
                 'scheduler_state':scheduler.state_dict(),
@@ -123,53 +122,41 @@ def main(max_num_epochs=10):
     cmd_args = parse_args()
     ray.init()
     # setup space of hyperparameters
-    # space = {
-    #     "learning_rate": tune.choice([1e-7,1e-6,1e-5,1e-4,1e-3]),
-    #     "ctrs_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1]),
-    #     "label_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
-    #     "ortho_loss_penalty": tune.choice([1e-2,1e-1,1,10,100]),
-    #     "dropout": tune.choice([0.2, 0.1, 0.3]),
-    #     "top_k": tune.choice([100, 200, 300]),
-    #     "rand_neg": tune.choice([0, 1]),
-    #     "multi_ctrs": tune.choice([0, 1]),
-    #     "filter_positive": tune.choice([0, 1]),
-    #     "mask_type": tune.choice([0, 1, 2, 3]),
-    #     "batch_size": tune.choice([8, 32, 128]),
-    #     "epoches": tune.choice(list(range(1,7))),
-    #     "temperature": tune.choice([10, 1, 0.1, 0.01]),
-    #     "hard_mask":tune.choice([1, 0]),
-    # }
     space = {
         "learning_rate": tune.choice([1e-7,1e-6,1e-5,1e-4,1e-3]),
-        "ctrs_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1]),
-        "label_loss_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
+        "preference_penalty": tune.choice([1e-4,1e-3,1e-2,1e-1,1,10,100]),
         "ortho_loss_penalty": tune.choice([1e-2,1e-1,1,10,100]),
         "dropout": tune.choice([0.2, 0.1, 0.3]),
-        "top_k": tune.choice([100, 200]),
-        "rand_neg": tune.choice([0, 1]),
+        "gamma": tune.choice([0.01, 0.1, 0.5, 1]),
+        "top_k": tune.choice([80, 160, 320]),
+        "rand_ctx": tune.choice([0, 1]),
         "multi_ctrs": tune.choice([0, 1]),
         "filter_positive": tune.choice([0, 1]),
-        "mask_type": tune.choice([1, 3]),
-        "batch_size": 8,
-        "epoches": 6,
-        "temperature": 1,
-        "hard_mask":1,
+        "mask_type": tune.choice([0, 1]),
+        "batch_size": tune.choice([4, 8]),
+        "norm_option": tune.choice([0, 1]),
+        "reward_type": tune.choice([0, 1, 2, 3, 4, 5, 6]),
+        "epoches": tune.choice([1, 3, 6, 9, 12]),
+        "temperature": tune.choice([1, 10]),
+        "hard_mask":tune.choice([0, 1]),
     }
     current_best_params = [{
         "learning_rate": 1e-5,
-        "ctrs_loss_penalty": 1,
-        "label_loss_penalty": 0.001,
-        "ortho_loss_penalty": 1,
+        "preference_penalty": 0.1,
+        "ortho_loss_penalty": 100,
         "dropout": 0.2,
-        "top_k": 200,
-        "rand_neg": 0,
-        "multi_ctrs": 0,
+        "gamma":0.1,
+        "top_k": 80,
+        "rand_ctx": 0,
+        "multi_ctrs": 1,
         "filter_positive": 1,
-        "mask_type": 3,
+        "mask_type": 1,
         "batch_size": 8,
+        "norm_option": 0,
+        "reward_type": 6,
         "epoches": 6,
         "temperature": 1,
-        "hard_mask":1,
+        "hard_mask":0,
     }]
     # for more search alg, refer to https://docs.ray.io/en/latest/tune/api/suggestion.html
     searcher = HyperOptSearch(
@@ -188,6 +175,7 @@ def main(max_num_epochs=10):
     # start to train
     ray_dir = Path(cmd_args.taskpath)/'inference'/'_ray'
     ray_dir.mkdir(exist_ok=True,parents=True)
+    resume = "AUTO+ERRORED"
     result = tune.run(
         partial(trial, cmd_args=cmd_args),
         resources_per_trial={"cpu": cmd_args.cpus_per_trial, "gpu": cmd_args.gpus_per_trial},
@@ -199,15 +187,15 @@ def main(max_num_epochs=10):
         scheduler=scheduler,
         progress_reporter=reporter,
         local_dir=str(ray_dir),
-        resume="AUTO+ERRORED",
+        resume=resume,
         )
  
     # find the best trial
     best_trial = result.get_best_trial("score", "max", "last")
     print("Best trial config: {}".format(best_trial.config))
     print("Best trial final score: {}".format(best_trial.last_result["score"]))
-    print("Best trial final metric: {}".format(best_trial.last_result["metric"]))
-    print("Best trial final ckpt: {}".format(best_trial.checkpoint.value))
+    with best_trial.checkpoint.as_directory() as checkpoint_dir:
+        print("Best trial final ckpt: {}".format(checkpoint_dir))
 
 if __name__=='__main__':
     main()

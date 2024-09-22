@@ -3,6 +3,8 @@ import torch
 from torch import nn
 from torch import Tensor as T
 from pathlib import Path
+import torch.nn.functional as F
+import random
 
 def get_model_max_length(model_name):
     if 'llama-3' in model_name.lower():
@@ -30,6 +32,7 @@ class CausalLM(nn.Module):
         self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
         self.clear_ctx_mask()
         self.generate_max_len = config.generate_max_len
+        self.cfg = config
 
     def set_ctx_mask(self,ctx_mask):
         self.__ctx_mask__ = ctx_mask
@@ -162,9 +165,10 @@ class CausalLM(nn.Module):
             loss= torch.gather(logit_losses, -1, ans_ids.unsqueeze(-1)).squeeze(-1).mean(dim=-1)
             options_losses.append(loss)
         options_losses = torch.cat(options_losses,dim=-1)
-        normed_losses = torch.nn.functional.normalize(options_losses, p=1, dim=-1)
-        label_loss = normed_losses[test_label]
-        pred = torch.argmin(normed_losses, dim=-1).item()
+        if self.cfg.norm_option:
+            options_losses = torch.nn.functional.normalize(options_losses, p=1, dim=-1)
+        label_loss = options_losses[test_label]
+        pred = torch.argmin(options_losses, dim=-1).item()
         return label_loss,pred
 
 
@@ -195,28 +199,148 @@ class CausalLM(nn.Module):
         if '\n' not in pred: pred+='\n' 
         return pred
 
+    def _random_sim2indices(self,size,exclude=[]):
+        indices = [a for a in random.choices(list(range(size)),k=self.cfg.k_shot)]
+        if set(indices)==set(exclude):
+            return self._random_sim2indices(size,exclude)
+        return indices
 
-    # def completion_losses(self,input_ids,input_atten_mask,labels,task):
-    #     with torch.no_grad():
-    #         answer_start = int(input_atten_mask.shape[-1]) 
-    #         res = self.model.generate(input_ids=input_ids.squeeze(1), #remove the dim for option_num
-    #                                     attention_mask=input_atten_mask.squeeze(1),
-    #                                     eos_token_id=self.dataset_reader.tokenizer.encode("\n")[0],
-    #                                     pad_token_id=self.dataset_reader.tokenizer.pad_token_id,
-    #                                     max_length=min(self.max_length,answer_start+self.generate_max_len),
-    #                                     do_sample=False)
-                        
-    #     pred_ids=res[:,answer_start:]
-    #     preds=[]
-    #     for i in range(len(pred_ids)):
-    #         pred=tokenizer.decode(pred_ids[i],skip_special_tokens=True)
-    #         # avoid empty prediction to avoid errors when calculating Rouge metric scores
-    #         if '\n' not in pred: pred+='\n' 
-    #         preds.append(pred)
-    #     compute_metric=metric_dict[task.metric]
-    #     scores=compute_metric(preds=preds, labels=labels, return_list=True)
-    #     return  {
-    #             "labels_losses": [1-score for score in scores],
-    #             "accurate_list": scores,
-    #             "preds": preds
-    #             }
+    def _parse_sim_matrix(self,sim_matrix):
+        with torch.no_grad():
+            _,candidate_ids = torch.topk(sim_matrix, self.cfg.k_shot,dim=-1)
+            indices = []
+            for inds in candidate_ids.tolist():
+                for ind in inds:
+                    if ind not in indices:
+                        indices.append(ind)
+                        break
+            indices = torch.tensor(indices).unsqueeze(-1).to(sim_matrix.device)
+        mask = torch.gather(sim_matrix,-1,indices)
+        mask,indices = mask.reshape(-1), indices.reshape(-1)
+        return mask,indices.tolist()
+
+    def _sim2indices(self,sim_matrix,skiplst=[]):
+        with torch.no_grad():
+            _,candidate_ids = torch.topk(sim_matrix, self.cfg.k_shot,dim=-1)
+            indices = []
+            for inds in candidate_ids.tolist():
+                for ind in inds:
+                    if ind not in indices and ind not in skiplst:
+                        indices.append(ind)
+                        break
+        return indices
+
+    def _indices2mask(self,sim_matrix,indices,hard_mask=False):
+        indices_tensor = torch.tensor(indices).unsqueeze(-1).to(sim_matrix.device)
+        soft_mask = torch.gather(sim_matrix,-1,indices_tensor).reshape(-1)
+        if hard_mask:
+            mask = torch.ones_like(soft_mask).to(soft_mask.device) - soft_mask.detach() + soft_mask 
+        else:
+            mask = soft_mask
+        return mask
+
+    def get_llm_loss(self,similarity,query_entry,ctx_entries,answer_list,label,epoch):
+        soft_similarity = similarity.softmax(dim=-1)
+        if self.cfg.mask_type==0:
+            parsed_similarity = soft_similarity
+        elif self.cfg.mask_type==1:
+            parsed_similarity = F.gumbel_softmax(similarity, tau=self.cfg.temperature/(epoch**2), hard=False, dim=-1)
+        return self.reward_loss(query_entry,ctx_entries,answer_list,label,parsed_similarity,soft_similarity)
+
+    def _reward_coef(self,flag:bool):
+        if flag:
+            return 1
+        else:
+            return -1
+
+    def reward_loss(self,query_entry,ctx_entries,answer_list,label,parsed_similarity,soft_similarity):
+        size = soft_similarity.shape[-1]
+        if self.cfg.reward_type==0:
+            indices = self._sim2indices(parsed_similarity)
+            mask = self._indices2mask(parsed_similarity,indices,self.cfg.hard_mask)
+            selected_ctxs = [ctx_entries[a] for a in indices]
+            label_loss,_ = self.forward(query_entry,selected_ctxs,answer_list,label,mask)
+            return label_loss
+        
+        elif self.cfg.reward_type==1:
+            indices1 = self._random_sim2indices(size)
+            indices2 = self._random_sim2indices(size,exclude=indices1)
+            mask1 = self._indices2mask(parsed_similarity,indices1,self.cfg.hard_mask)
+            mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            label_loss1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
+            label_loss2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
+            reward1=-label_loss1
+            reward2=-label_loss2
+        
+        elif self.cfg.reward_type==2:
+            indices1 = self._random_sim2indices(size)
+            indices2 = self._random_sim2indices(size,exclude=indices1)
+            softmask1 = self._indices2mask(soft_similarity,indices1)
+            softmask2 = self._indices2mask(soft_similarity,indices2)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            with torch.no_grad():
+                label_loss1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            reward1=softmask1.mean()
+            reward2=softmask2.mean()
+        
+        elif self.cfg.reward_type==3:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._random_sim2indices(size,exclude=indices1)
+            mask1 = self._indices2mask(parsed_similarity,indices1,self.cfg.hard_mask)
+            mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            label_loss1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
+            label_loss2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
+            reward1=-label_loss1
+            reward2=-label_loss2
+        
+        elif self.cfg.reward_type==4:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._random_sim2indices(size,exclude=indices1)
+            softmask1 = self._indices2mask(soft_similarity,indices1)
+            softmask2 = self._indices2mask(soft_similarity,indices2)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            with torch.no_grad():
+                label_loss1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            reward1=softmask1.mean()
+            reward2=softmask2.mean()
+        
+        elif self.cfg.reward_type==5:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._sim2indices(parsed_similarity,skiplst=indices1)
+            mask1 = self._indices2mask(parsed_similarity,indices1,self.cfg.hard_mask)
+            mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            label_loss1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
+            label_loss2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
+            reward1=-label_loss1
+            reward2=-label_loss2
+
+        
+        elif self.cfg.reward_type==6:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._sim2indices(parsed_similarity,skiplst=indices1)
+            softmask1 = self._indices2mask(soft_similarity,indices1)
+            softmask2 = self._indices2mask(soft_similarity,indices2)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            with torch.no_grad():
+                label_loss1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            reward1=softmask1.mean()
+            reward2=softmask2.mean()
+
+        # return preference loss
+        if self.cfg.filter_positive and self.cfg.option_num>1 and (pred1 != label) and (pred2 != label):
+            label_loss = -F.logsigmoid((-reward1-reward2)-self.cfg.gamma)
+        else:
+            label_loss = -F.logsigmoid((reward1-reward2)*self._reward_coef(label_loss1.item()<label_loss2.item())-self.cfg.gamma)
+        return label_loss

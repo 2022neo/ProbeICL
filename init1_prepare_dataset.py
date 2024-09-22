@@ -131,7 +131,7 @@ def main():
             "multi_ctrs":False,
             "label_loss_penalty":0.001,
             "ortho_loss_penalty":1,
-            "ctrs_loss_penalty":1,
+            "ctrs_loss_penalty":0,
             "representation_token_pos":0,
             "norm_mask":False,
             "projection_dim": 0,

@@ -224,30 +224,6 @@ class ProbeIclDataset(Dataset):
             task_name = entry["task_name"]
             task = task_map.cls_dic[task_name]()
 
-            scored_cntxs = [
-                {
-                    "demonstration": format_example(p_example, self.prompt_setup_type),
-                    "title":p_example["title"] if "title" in p_example else None,
-                }
-                for p_example in entry["ctxs"][:self.top_k]
-            ] 
-            scored_ids = [ctx_entry['id'] for ctx_entry in entry["ctxs"][:self.top_k]] 
-            positive_idx_list = [
-                i for i,ctx_entry in enumerate(entry["ctxs"][:self.top_k]) 
-                if (entry["ctxs"][0]["one_shot_acc"]==True or entry["ctxs"][0]["one_shot_acc"] > 0)
-            ] if self.cfg.option_num>1 else [0]
-
-            # random example
-            filtered_prompt_pool = [prompt for prompt in self.prompt_pool if prompt['id'] not in scored_ids]
-            rand_cntx = [
-                {
-                    "demonstration": format_example(n_example, self.prompt_setup_type),
-                    "title":n_example["title"] if "title" in n_example else None,
-                }
-                for n_example in random.choices(filtered_prompt_pool, k=self.top_k)
-            ]
-
-            # use task_name + id to finde example，for multi task data
             question = ""
             question += format_example(entry, self.task_setup_type)
             query_ctx = {
@@ -255,19 +231,42 @@ class ProbeIclDataset(Dataset):
                 "title":entry["title"] if "title" in entry else None,
             }
             answers,label = get_example_answers(entry)
-            entry = edict({
+            output = edict({
                 "query_ctx": query_ctx,
                 "answers": answers,
                 "label":label,
-                "scored_cntxs": scored_cntxs,
-                "positive_idx_list": positive_idx_list,
-                "random_ctxs": rand_cntx,
             })
-            return entry
+
+            if self.cfg.rand_ctx:
+                # filtered_prompt_pool = [prompt for prompt in self.prompt_pool if prompt['id'] not in scored_ids]
+                rand_cntx = [
+                    {
+                        "demonstration": format_example(n_example, self.prompt_setup_type),
+                        "title":n_example["title"] if "title" in n_example else None,
+                    }
+                    for n_example in random.choices(self.prompt_pool, k=self.top_k)
+                ]
+                output["ctx_entries"]=rand_cntx
+            else:
+                scored_cntxs = [
+                    {
+                        "demonstration": format_example(p_example, self.prompt_setup_type),
+                        "title":p_example["title"] if "title" in p_example else None,
+                    }
+                    for p_example in entry["ctxs"][:self.top_k]
+                ] 
+                scored_ids = [ctx_entry['id'] for ctx_entry in entry["ctxs"][:self.top_k]] 
+                positive_idx_list = [
+                    i for i,ctx_entry in enumerate(entry["ctxs"][:self.top_k]) 
+                    if (entry["ctxs"][0]["one_shot_acc"]==True or entry["ctxs"][0]["one_shot_acc"] > 0)
+                ] if self.cfg.option_num>1 else [0]
+                output["ctx_entries"]=scored_cntxs
+                output["positive_idx_list"]=positive_idx_list
+            return output
         else:
             raise NotImplementedError
 
-    def load_data(self,training=True):
+    def load_data(self):
         logger.info("dpr files: %s", self.data_files)
         raw_data = read_data_from_json_files(self.data_files)
         logger.info("********len(raw_data): %d", len(raw_data))
@@ -276,7 +275,7 @@ class ProbeIclDataset(Dataset):
             self.data.append(self.get_entry(entry))
         # filter out those without positive ctx
         if self.loss_type == 'dpr':
-            self.data = [r for r in self.data if len(r["positive_idx_list"])>0] if (training and self.cfg.filter_positive) else self.data
+            self.data = self.data
             logger.info("filter out data for : {}".format(len(raw_data) - len(self.data)))
             logger.info("Total filtered data size: {}".format(len(self.data)))
         else:

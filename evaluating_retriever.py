@@ -47,13 +47,13 @@ def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm):
         shot_num+=[len(ctx_entries)]
         all_labels.append(label)
 
-        label_loss,pred = llm.inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
+        prefer_loss,pred = llm.inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
         preds.append(pred)
-        losses += [label_loss.item()] if isinstance(label_loss,torch.Tensor) else []
+        losses += [prefer_loss.item()] if isinstance(prefer_loss,torch.Tensor) else []
 
-        aug_label_loss,aug_pred = llm.aug_inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
+        aug_prefer_loss,aug_pred = llm.aug_inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
         aug_preds.append(aug_pred)
-        aug_losses += [aug_label_loss.item()] if isinstance(aug_label_loss,torch.Tensor) else []
+        aug_losses += [aug_prefer_loss.item()] if isinstance(aug_prefer_loss,torch.Tensor) else []
         
     metric_info = calculate_metric(preds,all_labels,task)
     if len(losses)>0:
@@ -176,17 +176,21 @@ def evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config,
         'epoches':config.epoches,
         'lr':config.learning_rate,
         'k_shot':config.k_shot,
-        'label_penalty':config.label_loss_penalty,
+        'preference_penalty':config.preference_penalty,
         'ortho_penalty':config.ortho_loss_penalty,
-        'ctrs_penalty':config.ctrs_loss_penalty,
         'tau':config.temperature,
         'hard_mask':config.hard_mask,
-        'filter_positive':config.filter_positive,
-        'rand_neg':config.rand_neg,
+        'filter_positive':config.filter_positive if config.option_num>1 else None,
+        'rand_ctx':config.rand_ctx,
+        'norm_option':config.norm_option,
         'mask_type':config.mask_type,
+        'reward_type':config.reward_type,
+        'gamma':config.gamma if config.reward_type>0 else None,
+        'batch_size':config.batch_size,
         'multi_ctrs':config.multi_ctrs,
         'lm_name':config.lm_name,
         'top_k':config.top_k,
+        'train_ds':config.train_ds,
         'dropout':config.dropout,
         'ckpt':config.ckptname,
     }
