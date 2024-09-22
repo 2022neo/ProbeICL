@@ -236,7 +236,20 @@ class ProbeIclDataset(Dataset):
                 "answers": answers,
                 "label":label,
             })
-
+            scored_cntxs = [
+                {
+                    "demonstration": format_example(p_example, self.prompt_setup_type),
+                    "title":p_example["title"] if "title" in p_example else None,
+                }
+                for p_example in entry["ctxs"][:self.top_k]
+            ] 
+            scored_ids = [ctx_entry['id'] for ctx_entry in entry["ctxs"][:self.top_k]] 
+            positive_idx_list = [
+                i for i,ctx_entry in enumerate(entry["ctxs"][:self.top_k]) 
+                if (entry["ctxs"][0]["one_shot_acc"]==True or entry["ctxs"][0]["one_shot_acc"] > 0)
+            ] if self.cfg.option_num>1 else [0]
+            output["positive_idx_list"]=positive_idx_list
+            output["scored_cntxs"]=scored_cntxs
             if self.cfg.rand_ctx:
                 # filtered_prompt_pool = [prompt for prompt in self.prompt_pool if prompt['id'] not in scored_ids]
                 rand_cntx = [
@@ -248,25 +261,13 @@ class ProbeIclDataset(Dataset):
                 ]
                 output["ctx_entries"]=rand_cntx
             else:
-                scored_cntxs = [
-                    {
-                        "demonstration": format_example(p_example, self.prompt_setup_type),
-                        "title":p_example["title"] if "title" in p_example else None,
-                    }
-                    for p_example in entry["ctxs"][:self.top_k]
-                ] 
-                scored_ids = [ctx_entry['id'] for ctx_entry in entry["ctxs"][:self.top_k]] 
-                positive_idx_list = [
-                    i for i,ctx_entry in enumerate(entry["ctxs"][:self.top_k]) 
-                    if (entry["ctxs"][0]["one_shot_acc"]==True or entry["ctxs"][0]["one_shot_acc"] > 0)
-                ] if self.cfg.option_num>1 else [0]
                 output["ctx_entries"]=scored_cntxs
-                output["positive_idx_list"]=positive_idx_list
+                
             return output
         else:
             raise NotImplementedError
 
-    def load_data(self):
+    def load_data(self,training=True):
         logger.info("dpr files: %s", self.data_files)
         raw_data = read_data_from_json_files(self.data_files)
         logger.info("********len(raw_data): %d", len(raw_data))
@@ -275,7 +276,7 @@ class ProbeIclDataset(Dataset):
             self.data.append(self.get_entry(entry))
         # filter out those without positive ctx
         if self.loss_type == 'dpr':
-            self.data = self.data
+            self.data = [a for a in self.data if len(a.positive_idx_list)>0] if self.cfg.filter_positive and training else self.data
             logger.info("filter out data for : {}".format(len(raw_data) - len(self.data)))
             logger.info("Total filtered data size: {}".format(len(self.data)))
         else:

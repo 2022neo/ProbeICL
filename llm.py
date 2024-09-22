@@ -339,7 +339,7 @@ class CausalLM(nn.Module):
             reward2=softmask2.mean()
 
         # return preference loss
-        if self.cfg.filter_positive and self.cfg.option_num>1 and (pred1 != label) and (pred2 != label):
+        if self.cfg.filter_preference and self.cfg.option_num>1 and (pred1 != label) and (pred2 != label):
             label_loss = -F.logsigmoid((-reward1-reward2)-self.cfg.gamma)
         else:
             label_loss = -F.logsigmoid((reward1-reward2)*self._reward_coef(label_loss1.item()<label_loss2.item())-self.cfg.gamma)

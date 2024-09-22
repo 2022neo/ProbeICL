@@ -37,8 +37,7 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
         data = dataset[ind]
         query_entry,answer_list,label = data.query_ctx,data.answers,data.label
         with torch.no_grad():
-            ctx_entries = data.ctx_entries
-
+            ctx_entries = data.scored_cntxs
             similarity = retriever.calculate_similarity(query_entry,ctx_entries,tensorizer)
             indices = llm._sim2indices(similarity.softmax(dim=-1))
             selected_ctxs = [ctx_entries[a] for a in indices]
@@ -50,15 +49,15 @@ def valid(dataset, llm, retriever, tensorizer, config, task, epoch):
                 compute_metric=metric_dict[task.metric]
                 score=compute_metric(preds=[pred], labels=[label], return_list=True)[0]
                 all_score+=[score]
-            # _, ranks = torch.sort(similarity.max(dim=0)[0], descending=True)
-            # ranks = ranks.tolist()
-            # n = len(ranks)-1
-            # skew = [abs(rank-idx)/n for idx,rank in enumerate(ranks)]
-            # all_skew.append(np.mean(skew).item())
+            _, ranks = torch.sort(similarity.max(dim=0)[0], descending=True)
+            ranks = ranks.tolist()
+            n = len(ranks)-1
+            skew = [abs(rank-idx)/n for idx,rank in enumerate(ranks)]
+            all_skew.append(np.mean(skew).item())
     valid_info = {
         'score': float(f"{np.mean(all_score).item()*100:.1f}") if len(all_score)>0 else None,
         'loss': float(f"{np.mean(all_loss).item():.6f}") if len(all_loss)>0 else None,
-        # 'skew': float(f"{np.mean(all_skew).item()*100:.3f}") if len(all_skew)>0 else None,
+        'skew': float(f"{np.mean(all_skew).item()*100:.3f}") if len(all_skew)>0 else None,
     }
     pbar.close()
     config['valid_info']=valid_info
@@ -163,6 +162,7 @@ def parse_args():
     parser.add_argument("--gamma", type=float, default=0.1, help="")
     parser.add_argument("--dropout", type=float, default=0.1, help="")
     parser.add_argument("--filter_positive", type=int, choices=[0, 1], default=1, help="1 or 0")
+    parser.add_argument("--filter_preference", type=int, choices=[0, 1], default=0, help="1 or 0")
     parser.add_argument("--save_model", type=int, choices=[0, 1], default=0, help="1 or 0")
 
     args = parser.parse_args()
