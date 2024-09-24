@@ -33,7 +33,7 @@ The runtime of scoring process increases as the value of ```${finder_L}``` incre
 ```bash
 bash scripts/train.sh ${gpu_ids} ${exps_dir} ${task_name}
 #such as:
-sh scripts/train.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "copa"
+sh scripts/train.sh "0,7" "/mnt/16t_3/jiyuwen/projects/DPR/exps" "mrpc"
 ```
 
 We recommend writing unique training scripts for each task to try different parameters.
@@ -41,7 +41,7 @@ The results for ```${task_name}``` will be saved to ```${exps_dir}/${task_name}/
 
 We also provide ray-based scripts for **Automatic Hyperparameter Search**:
 ```bash
-CUDA_VISIBLE_DEVICES="0,1,4,5,6,7,8,9" python training_retriever_opt.py --exps_dir "/mnt/16t_3/jiyuwen/projects/DPR/exps" --task_name "copa" --num_samples 3000 --gpus_per_trial 1 --cpus_per_trial 8 --train_ds -1
+CUDA_VISIBLE_DEVICES="0,1,4,5,6,7,8,9" python training_retriever_opt.py --exps_dir "/mnt/16t_3/jiyuwen/projects/DPR/exps" --task_name "mrpc" --num_samples 3000 --gpus_per_trial 1 --cpus_per_trial 8 --train_ds -1
 ```
 
 ```${num_samples}``` represents the maximum number of parameter search iterations.

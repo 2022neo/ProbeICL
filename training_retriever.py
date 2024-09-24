@@ -154,12 +154,13 @@ def parse_args():
     parser.add_argument("--rand_ctx", type=int, choices=[0, 1], default=0, help="")
     parser.add_argument("--hard_mask", type=int, choices=[0, 1], default=0, help="")
     parser.add_argument("--norm_option", type=int, choices=[0, 1], default=0, help="")
-    parser.add_argument("--mask_type", type=int, choices=[0, 1], default=0, help="")
-    parser.add_argument("--reward_type", type=int, choices=[0, 1, 2, 3, 4, 5, 6], default=0, help="")
-    parser.add_argument("--batch_size", type=int, default=8, help="")
     parser.add_argument("--norm_mask", type=int, choices=[0, 1], default=0, help="")
+    parser.add_argument("--mask_type", type=int, choices=[0, 1], default=0, help="")
+    parser.add_argument("--reward_type", type=int, choices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], default=0, help="")
+    parser.add_argument("--batch_size", type=int, default=8, help="")
     parser.add_argument("--temperature", type=float, default=1, help="")
-    parser.add_argument("--gamma", type=float, default=0.1, help="")
+    parser.add_argument("--gamma", type=float, default=0.5, help="")
+    parser.add_argument("--beta", type=float, default=2.0, help="")
     parser.add_argument("--dropout", type=float, default=0.1, help="")
     parser.add_argument("--filter_positive", type=int, choices=[0, 1], default=1, help="1 or 0")
     parser.add_argument("--filter_preference", type=int, choices=[0, 1], default=0, help="1 or 0")
@@ -198,7 +199,7 @@ def prepare_trial(config):
         prompt_setup_type = config.prompt_setup_type,
         task_setup_type= config.task_setup_type,
     )
-    valid_dataset.load_data()
+    valid_dataset.load_data(training=False)
 
     test_dataset = task.get_dataset(
             split="test",

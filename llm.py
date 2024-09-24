@@ -33,6 +33,7 @@ class CausalLM(nn.Module):
         self.clear_ctx_mask()
         self.generate_max_len = config.generate_max_len
         self.cfg = config
+        self.loss_fct = PreferenceLoss(beta=self.cfg.beta,gamma=self.cfg.gamma)
 
     def set_ctx_mask(self,ctx_mask):
         self.__ctx_mask__ = ctx_mask
@@ -260,7 +261,8 @@ class CausalLM(nn.Module):
             mask = self._indices2mask(parsed_similarity,indices,self.cfg.hard_mask)
             selected_ctxs = [ctx_entries[a] for a in indices]
             label_loss,_ = self.forward(query_entry,selected_ctxs,answer_list,label,mask)
-            return label_loss
+            prefer_loss = label_loss
+            return prefer_loss
         
         elif self.cfg.reward_type==1:
             indices1 = self._random_sim2indices(size)
@@ -269,63 +271,85 @@ class CausalLM(nn.Module):
             mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
             selected_ctxs1 = [ctx_entries[a] for a in indices1]
             selected_ctxs2 = [ctx_entries[a] for a in indices2]
-            label_loss1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
-            label_loss2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
-            reward1=-label_loss1
-            reward2=-label_loss2
-        
+            label_loss_1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
+            label_loss_2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
+            policy_logp_1=-label_loss_1
+            policy_logp_2=-label_loss_2
         elif self.cfg.reward_type==2:
             indices1 = self._random_sim2indices(size)
             indices2 = self._random_sim2indices(size,exclude=indices1)
-            softmask1 = self._indices2mask(soft_similarity,indices1)
-            softmask2 = self._indices2mask(soft_similarity,indices2)
+            softmask1 = self._indices2mask(parsed_similarity,indices1)
+            softmask2 = self._indices2mask(parsed_similarity,indices2)
             selected_ctxs1 = [ctx_entries[a] for a in indices1]
             selected_ctxs2 = [ctx_entries[a] for a in indices2]
             with torch.no_grad():
-                label_loss1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
-                label_loss2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
-            reward1=softmask1.mean()
-            reward2=softmask2.mean()
-        
+                label_loss_1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss_2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            policy_logp_1=softmask1.log().mean()
+            policy_logp_2=softmask2.log().mean()
         elif self.cfg.reward_type==3:
-            indices1 = self._sim2indices(parsed_similarity)
+            indices1 = self._random_sim2indices(size)
             indices2 = self._random_sim2indices(size,exclude=indices1)
-            mask1 = self._indices2mask(parsed_similarity,indices1,self.cfg.hard_mask)
-            mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
+            softmask1 = self._indices2mask(parsed_similarity,indices1)
+            softmask2 = self._indices2mask(parsed_similarity,indices2)
             selected_ctxs1 = [ctx_entries[a] for a in indices1]
             selected_ctxs2 = [ctx_entries[a] for a in indices2]
-            label_loss1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
-            label_loss2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
-            reward1=-label_loss1
-            reward2=-label_loss2
-        
+            with torch.no_grad():
+                label_loss_1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss_2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            policy_logp_1=softmask1.mean()
+            policy_logp_2=softmask2.mean()
+
+
         elif self.cfg.reward_type==4:
             indices1 = self._sim2indices(parsed_similarity)
             indices2 = self._random_sim2indices(size,exclude=indices1)
+            mask1 = self._indices2mask(parsed_similarity,indices1,self.cfg.hard_mask)
+            mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            label_loss_1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
+            label_loss_2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
+            policy_logp_1=-label_loss_1
+            policy_logp_2=-label_loss_2
+        elif self.cfg.reward_type==5:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._random_sim2indices(size,exclude=indices1)
             softmask1 = self._indices2mask(soft_similarity,indices1)
             softmask2 = self._indices2mask(soft_similarity,indices2)
             selected_ctxs1 = [ctx_entries[a] for a in indices1]
             selected_ctxs2 = [ctx_entries[a] for a in indices2]
             with torch.no_grad():
-                label_loss1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
-                label_loss2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
-            reward1=softmask1.mean()
-            reward2=softmask2.mean()
-        
-        elif self.cfg.reward_type==5:
+                label_loss_1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss_2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            policy_logp_1=softmask1.log().mean()
+            policy_logp_2=softmask2.log().mean()
+        elif self.cfg.reward_type==6:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._random_sim2indices(size,exclude=indices1)
+            softmask1 = self._indices2mask(soft_similarity,indices1)
+            softmask2 = self._indices2mask(soft_similarity,indices2)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            with torch.no_grad():
+                label_loss_1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss_2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            policy_logp_1=softmask1.mean()
+            policy_logp_2=softmask2.mean()
+
+
+        elif self.cfg.reward_type==7:
             indices1 = self._sim2indices(parsed_similarity)
             indices2 = self._sim2indices(parsed_similarity,skiplst=indices1)
             mask1 = self._indices2mask(parsed_similarity,indices1,self.cfg.hard_mask)
             mask2 = self._indices2mask(parsed_similarity,indices2,self.cfg.hard_mask)
             selected_ctxs1 = [ctx_entries[a] for a in indices1]
             selected_ctxs2 = [ctx_entries[a] for a in indices2]
-            label_loss1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
-            label_loss2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
-            reward1=-label_loss1
-            reward2=-label_loss2
-
-        
-        elif self.cfg.reward_type==6:
+            label_loss_1,pred1 = self.forward(query_entry,selected_ctxs1,answer_list,label,mask1)
+            label_loss_2,pred2 = self.forward(query_entry,selected_ctxs2,answer_list,label,mask2)
+            policy_logp_1=-label_loss_1
+            policy_logp_2=-label_loss_2
+        elif self.cfg.reward_type==8:
             indices1 = self._sim2indices(parsed_similarity)
             indices2 = self._sim2indices(parsed_similarity,skiplst=indices1)
             softmask1 = self._indices2mask(soft_similarity,indices1)
@@ -333,14 +357,69 @@ class CausalLM(nn.Module):
             selected_ctxs1 = [ctx_entries[a] for a in indices1]
             selected_ctxs2 = [ctx_entries[a] for a in indices2]
             with torch.no_grad():
-                label_loss1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
-                label_loss2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
-            reward1=softmask1.mean()
-            reward2=softmask2.mean()
+                label_loss_1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss_2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            policy_logp_1=softmask1.log().mean()
+            policy_logp_2=softmask2.log().mean()
+        elif self.cfg.reward_type==9:
+            indices1 = self._sim2indices(parsed_similarity)
+            indices2 = self._sim2indices(parsed_similarity,skiplst=indices1)
+            softmask1 = self._indices2mask(soft_similarity,indices1)
+            softmask2 = self._indices2mask(soft_similarity,indices2)
+            selected_ctxs1 = [ctx_entries[a] for a in indices1]
+            selected_ctxs2 = [ctx_entries[a] for a in indices2]
+            with torch.no_grad():
+                label_loss_1,pred1 = self.inference(query_entry,selected_ctxs1,answer_list,label)
+                label_loss_2,pred2 = self.inference(query_entry,selected_ctxs2,answer_list,label)
+            policy_logp_1=softmask1.mean()
+            policy_logp_2=softmask2.mean()
 
         # return preference loss
         if self.cfg.filter_preference and self.cfg.option_num>1 and (pred1 != label) and (pred2 != label):
-            label_loss = -F.logsigmoid((-reward1-reward2)-self.cfg.gamma)
+            pi_logratios = 0-policy_logp_1-policy_logp_2
         else:
-            label_loss = -F.logsigmoid((reward1-reward2)*self._reward_coef(label_loss1.item()<label_loss2.item())-self.cfg.gamma)
-        return label_loss
+            pi_logratios =(policy_logp_1-policy_logp_2)*self._reward_coef(label_loss_1.item()<label_loss_2.item())
+        prefer_loss = self.loss_fct(pi_logratios)
+        return prefer_loss
+    
+
+class PreferenceLoss(nn.Module):
+    """
+    Args:
+        beta (float): Equivalent temperature scaling parameter to DPO loss, typically in the range of 2.0 to 2.5. Default is 2.0.
+        gamma (float): Target reward margin hyperparameter, typically we have ``gamma in (0, 1.5]``. Default is 0.5.
+        label_smoothing (float): Parameter encoding uncertainty about the labels. Default is 0.
+    """
+    def __init__(
+        self,
+        beta: float = 2.0,
+        gamma: float = 0.5,
+        label_smoothing: float = 0.0,
+    ):
+        super().__init__()
+        self.beta = beta
+        self.gamma = gamma
+        self.label_smoothing = label_smoothing
+    def forward(
+            self,
+            pi_logratios: torch.Tensor,
+        ):
+            """
+            Compute the contrastive preference loss (SimPO loss).
+
+            Args:
+                pi_logratios (torch.Tensor): pi_logratios = policy_chosen_logps - policy_rejected_logps, 
+                    log probability ratio of the policy model between chosen and rejected sampling.
+
+            Returns:
+                losses (torch.Tensor): the preference loss for each example in the batch.
+            """
+
+            gamma_logratios = self.gamma / self.beta
+            logits = pi_logratios - gamma_logratios
+
+            losses = (
+                -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
+                - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+            )
+            return losses
