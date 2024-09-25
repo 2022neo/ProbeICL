@@ -26,7 +26,7 @@ from dpr.options import setup_logger
 logger = logging.getLogger()
 setup_logger(logger)
 
-def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm):
+def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm, force_pred):
     preds,aug_preds,all_labels = [],[],[]
     losses,aug_losses = [],[]
     shot_num = []
@@ -47,20 +47,22 @@ def test(testset, corpus, qid_to_ctx_rids, prompt_parser, task, llm):
         shot_num+=[len(ctx_entries)]
         all_labels.append(label)
 
-        prefer_loss,pred = llm.inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
-        preds.append(pred)
+        prefer_loss,pred = llm.inference(query_entry,ctx_entries,answer_list,label,force_pred=force_pred)
+        if pred is not None:
+            preds.append(pred) 
         losses += [prefer_loss.item()] if isinstance(prefer_loss,torch.Tensor) else []
 
-        aug_prefer_loss,aug_pred = llm.aug_inference(query_entry,ctx_entries,answer_list,label,force_pred=True)
-        aug_preds.append(aug_pred)
+        aug_prefer_loss,aug_pred = llm.aug_inference(query_entry,ctx_entries,answer_list,label,force_pred=force_pred)
+        if aug_pred is not None:
+            aug_preds.append(aug_pred)
         aug_losses += [aug_prefer_loss.item()] if isinstance(aug_prefer_loss,torch.Tensor) else []
         
-    metric_info = calculate_metric(preds,all_labels,task)
+    metric_info = calculate_metric(preds,all_labels,task) if len(preds) > 0 else {}
     if len(losses)>0:
         metric_info['loss']=float(f"{np.mean(losses):.6f}")
 
     aug_metric_info=None
-    aug_metric_info = calculate_metric(aug_preds,all_labels,task)
+    aug_metric_info = calculate_metric(aug_preds,all_labels,task) if len(aug_preds) > 0 else {}
     if len(aug_losses)>0:
         aug_metric_info['loss']=float(f"{np.mean(aug_losses):.6f}")
 
@@ -163,11 +165,11 @@ def retrieve_ctxs(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,co
                     break
     return qid_to_ctx_rids
 
-def evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config,llm,epoch):
+def evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config,llm,force_pred=False):
     retriever.eval()
     with torch.no_grad():
         qid_to_ctx_rids = retrieve_ctxs(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,config)
-        test_info, aug_test_info, avg_shot_num = test(test_dataset,corpus,qid_to_ctx_rids,prompt_parser,task,llm)
+        test_info, aug_test_info, avg_shot_num = test(test_dataset,corpus,qid_to_ctx_rids,prompt_parser,task,llm,force_pred)
     result_info = {
         'test_info':test_info,
         'aug_test_info':aug_test_info,
@@ -248,7 +250,7 @@ def main():
     llm = CausalLM(ckpt_cfg)
     retriever, tensorizer, prompt_parser = init_retriever(ckpt_cfg,inference_only=True)
     load_module_ckpt(retriever,ckptfn,"state_dict",retriever.device)
-    res = evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,ckpt_cfg,llm,ckptname)
+    res = evaluate(test_dataset,corpus,retriever,tensorizer,prompt_parser,task,ckpt_cfg,llm,force_pred=True)
     print(res)
 
 if __name__ == "__main__":

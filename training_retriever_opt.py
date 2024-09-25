@@ -78,7 +78,7 @@ def trial(param, cmd_args):
     for epc in range(start_epoch,config.epoches+1):
         train_loss = train(train_dataset, llm, retriever, tensorizer, optimizer, scheduler, scaler, prompt_parser, config, epc)
         valid_info = valid(valid_dataset, llm, retriever, tensorizer, config, task, epc)
-        result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,epc)
+        result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm)
 
         with tempfile.TemporaryDirectory(dir=config.cache_dir) as checkpoint_dir:
             savepath = Path(checkpoint_dir)/config.ckptname
@@ -92,9 +92,9 @@ def trial(param, cmd_args):
             }
             torch.save(save_content, str(savepath))
             checkpoint = Checkpoint.from_directory(checkpoint_dir)
-            score=result_info["test_info"]["score"]
             test_loss=result_info["test_info"]["loss"]
             valid_loss=valid_info["loss"]
+            score=1-test_loss if "score" not in result_info["test_info"] else result_info["test_info"]["score"]
             ray.train.report(
                 {"score":score,"train_loss":train_loss,"test_loss":test_loss,"valid_loss":valid_loss},
                 checkpoint=checkpoint,
@@ -115,7 +115,7 @@ def reproduce_trial(best_trial):
     train_dataset,valid_dataset,test_dataset,llm,retriever,tensorizer,optimizer,scheduler,scaler,prompt_parser,task = prepare_trial(config)
     device = retriever.device
     load_module_ckpt(retriever,ckptfn,"state_dict",device)
-    result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm,config["epoch"])
+    result_info = evaluate(test_dataset,train_dataset.prompt_pool,retriever,tensorizer,prompt_parser,task,config,llm)
     return result_info
 
 def main(max_num_epochs=10):
@@ -166,7 +166,7 @@ def main(max_num_epochs=10):
     }]
     # for more search alg, refer to https://docs.ray.io/en/latest/tune/api/suggestion.html
     searcher = HyperOptSearch(
-        metric="score", mode="max",points_to_evaluate=current_best_params
+        metric="score", mode="max", points_to_evaluate=current_best_params
     )
     # ASHAScheduler for early stopping
     scheduler = ASHAScheduler(
