@@ -173,7 +173,7 @@ def main(max_num_epochs=10):
         metric="train_loss",
         mode="min",
         max_t=max_num_epochs,
-        grace_period=2,
+        grace_period=4,
         reduction_factor=2)
     # report in cmd
     reporter = CLIReporter(
